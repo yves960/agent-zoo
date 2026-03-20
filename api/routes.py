@@ -30,6 +30,7 @@ try:
     from services.invocation_tracker import InvocationTracker, get_invocation_tracker
     from services.a2a_router import A2ARouter, get_a2a_router
     from core.websocket_manager import WebSocketManager, get_ws_manager_sync
+    from core.session_manager import SessionManager, get_session_manager
 except ImportError as e:
     print(f"Import error: {e}")
     # Stub implementations for development
@@ -49,12 +50,12 @@ except ImportError as e:
     def get_ws_manager_sync() -> WebSocketManager:
         return WebSocketManager()
 
-# SessionManager stub (not implemented yet)
-class SessionManager:
-    pass
+    # SessionManager stub (fallback if core.session_manager not available)
+    class SessionManager:
+        pass
 
-def get_session_manager() -> SessionManager:
-    return SessionManager()
+    async def get_session_manager() -> SessionManager:
+        return SessionManager()
 
 router = APIRouter(
     prefix="/api",
@@ -436,6 +437,104 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             })
         except Exception:
             pass
+
+
+# ==================== Session Recovery Routes ====================
+
+@router.get("/sessions/{session_id}/recover")
+async def recover_session(
+    session_id: str,
+    session_manager: SessionManager = Depends(get_session_manager),
+) -> Dict[str, Any]:
+    """
+    Recover a session's full state by session_id.
+    
+    After a restart or disconnect, the client can call this endpoint
+    to retrieve all messages and metadata for a session.
+    
+    Args:
+        session_id: The session ID to recover
+        
+    Returns:
+        Session recovery data including messages and metadata
+    """
+    try:
+        recovery_info = await session_manager.recover_session(session_id)
+        if not recovery_info:
+            raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        return {
+            "success": True,
+            "session_id": session_id,
+            "messages": recovery_info.get("messages", []),
+            "meta": recovery_info.get("meta", {}),
+            "message_count": recovery_info.get("message_count", 0),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {
+            "success": False,
+            "session_id": session_id,
+            "error": str(e),
+        }
+
+
+@router.get("/sessions", response_model=List[Dict[str, Any]])
+async def list_sessions(
+    session_manager: SessionManager = Depends(get_session_manager),
+) -> List[Dict[str, Any]]:
+    """
+    List all sessions with their metadata.
+    
+    Returns all sessions (persisted and in-memory) with basic info
+    suitable for session selection UI.
+    """
+    try:
+        sessions = await session_manager.get_all_sessions()
+        result = []
+        for session_id, session in sessions.items():
+            result.append({
+                "session_id": session_id,
+                "title": session.title,
+                "message_count": len(session.messages),
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+                "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                "animal_sessions": list(session.animal_sessions.keys()),
+            })
+        # Sort by updated_at desc
+        result.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
+        return result
+    except Exception as e:
+        return []
+
+
+@router.post("/sessions/{session_id}/clear", response_model=MessageResponse)
+async def clear_session(
+    session_id: str,
+    session_manager: SessionManager = Depends(get_session_manager),
+) -> MessageResponse:
+    """
+    Clear a session and its messages.
+    
+    Args:
+        session_id: Session to clear
+        
+    Returns:
+        Success status
+    """
+    try:
+        cleared = await session_manager.clear_session(session_id)
+        return MessageResponse(
+            success=cleared,
+            session_id=session_id,
+            content=f"Session {'cleared' if cleared else 'not found'}",
+        )
+    except Exception as e:
+        return MessageResponse(
+            success=False,
+            session_id=session_id,
+            error=str(e),
+        )
 
 
 # ==================== Utility Routes ====================
