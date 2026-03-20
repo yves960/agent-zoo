@@ -100,21 +100,20 @@ app.include_router(api_router)
 #   js/
 #   assets/
 static_dir = Path(__file__).parent / "web" / "static"
-if static_dir.exists():
-    app.mount(
-        "/",
-        StaticFiles(directory=str(static_dir), html=True),
-        name="static",
-    )
-    print(f"📦 Static files mounted at / → {static_dir}")
+if static_dir.exists() and static_dir.is_dir():
+    # Check if it's a symlink or real directory with content
+    target_dir = static_dir.resolve() if static_dir.is_symlink() else static_dir
+    if target_dir.exists():
+        app.mount(
+            "/",
+            StaticFiles(directory=str(static_dir), html=True),
+            name="static",
+        )
+        print(f"📦 Static files mounted at / → {static_dir}")
+    else:
+        print(f"⚠️  Static directory target not found: {target_dir}")
 else:
     print(f"⚠️  Static directory not found: {static_dir}")
-
-
-@app.get("/", include_in_schema=False)
-async def root():
-    """Root endpoint serving index.html from static files."""
-    return {"message": "Zoo Multi-Agent System API"}
 
 
 if __name__ == "__main__":

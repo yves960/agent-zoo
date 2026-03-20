@@ -88,9 +88,10 @@ class WebSocketMessage(BaseModel):
     """WebSocket message format."""
     type: str  # "message", "done", "error", "system", "connect", "ping"
     animal_id: Optional[str] = None
-    content: Optional[str] = None  # 改为可选
+    content: Optional[str] = None
     thread_id: Optional[str] = None
     timestamp: Optional[str] = None
+    mentions: Optional[List[str]] = None  # Frontend sends animal IDs to mention
     metadata: Dict[str, Any] = {}
 
 

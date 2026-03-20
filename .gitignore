@@ -5,18 +5,23 @@ __pycache__/
 .Python
 venv/
 .env
+*.egg-info/
+.eggs/
 
 # Node
 node_modules/
 .next/
-dist/
 web/dist/
+web/.next/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+.claude/
+.crush/
+.opencode/
 
 # OS
 .DS_Store
@@ -29,3 +34,8 @@ npm-debug.log*
 # Test coverage
 .coverage
 htmlcov/
+.pytest_cache/
+
+# Storage
+storage/*.db
+storage/*.sqlite

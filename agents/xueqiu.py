@@ -3,10 +3,14 @@ Xueqiu Service - 雪球 (雪纳瑞) - 主架构师 - opencode CLI
 """
 
 import asyncio
+import re
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 from services.cli_spawner import CLISpawner
 from .base import AnimalMessage, AnimalService
+
+# ANSI escape code stripper
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 
 class XueqiuService(AnimalService):
@@ -21,7 +25,7 @@ class XueqiuService(AnimalService):
     
     def __init__(self, animal_id: str = "xueqiu", config: Optional[Dict[str, Any]] = None):
         super().__init__(animal_id, config or {})
-        self.config.setdefault("model", "claude-opus-4")
+        self.config.setdefault("model", "minimax/MiniMax-M2.7")
         self.config.setdefault("timeout", 300.0)
     
     def get_cli_command(self) -> tuple[str, list[str]]:
@@ -42,7 +46,13 @@ class XueqiuService(AnimalService):
         else:
             text = event
         
-        if not text or text.strip() == "":
+        if not text:
+            return None
+        
+        # Strip ANSI escape codes
+        text = ANSI_ESCAPE.sub('', text)
+        
+        if not text.strip():
             return None
         
         return self.create_message(
@@ -83,11 +93,13 @@ class XueqiuService(AnimalService):
         
         def on_line(line: str, parsed: Optional[Dict[str, Any]] = None, is_error: bool = False) -> None:
             """Callback for each line of output."""
+            clean_line = ANSI_ESCAPE.sub('', line)
+            
             if is_error:
                 message = self.create_message(
-                    content=f"Error: {line}",
+                    content=f"Error: {clean_line}",
                     message_type="error",
-                    metadata={"line": line},
+                    metadata={"line": clean_line},
                     is_complete=False,
                 )
                 queue.put_nowait(message)

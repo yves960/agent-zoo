@@ -37,7 +37,7 @@ registry.register_config(AgentConfig(
     name="雪球",
     species="雪纳瑞",
     cli_path="opencode",
-    cli_args=["run", "-m", "claude-opus-4"],
+    cli_args=["run", "-m", "bailian-coding-plan/glm-5"],
     color="#4A90E2",
     mention_patterns=["@雪球", "@xueqiu"],
     enabled=True,

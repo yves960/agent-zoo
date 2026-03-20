@@ -41,7 +41,7 @@ class WebSocketManager:
             self.active_connections[connection_id] = WSConnection(
                 ws=websocket,
                 animal_id=animal_id,
-                connected_at=websocket.raw_scope["time"]
+                connected_at=0.0  # Simplified, no raw_scope access
             )
             if animal_id:
                 if animal_id not in self.animal_connections:
@@ -148,6 +148,30 @@ class WebSocketManager:
                 animal_id: len(conns)
                 for animal_id, conns in self.animal_connections.items()
             }
+
+    async def send_to_connection(self, connection_id: str, message: dict) -> bool:
+        """Send message to a specific connection by ID."""
+        if connection_id in self.active_connections:
+            try:
+                await self.active_connections[connection_id].ws.send_json(message)
+                return True
+            except Exception:
+                await self.disconnect(connection_id)
+        return False
+
+    async def broadcast_to_all(self, message: dict, exclude_connection_id: Optional[str] = None) -> int:
+        """Broadcast message to all active connections."""
+        sent = 0
+        for conn_id in list(self.active_connections.keys()):
+            if conn_id == exclude_connection_id:
+                continue
+            if conn_id in self.active_connections:
+                try:
+                    await self.active_connections[conn_id].ws.send_json(message)
+                    sent += 1
+                except Exception:
+                    await self.disconnect(conn_id)
+        return sent
 
     async def close_all(self) -> None:
         """Close all WebSocket connections."""

@@ -19,9 +19,9 @@ python main.py
 ```
 
 服务启动后:
-- API 文档: http://localhost:8000/docs
-- 红色文档: http://localhost:8000/redoc
-- WebSocket: ws://localhost:8000/ws
+- 前端页面: http://localhost:8001
+- API 文档: http://localhost:8001/docs
+- WebSocket: ws://localhost:8001/api/ws
 
 ## API 端点
 

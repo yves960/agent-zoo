@@ -47,33 +47,37 @@ class AgentDispatcher:
     ) -> List[DispatchResult]:
         """
         Dispatch message to target agents.
-        
+
         Args:
             content: Message content
             thread_id: Conversation thread ID
             mentions: Optional list of animal_ids to route to (from @mentions)
             exclude_connection_id: WebSocket connection to exclude from broadcasts
-            
+
         Returns:
             List of dispatch results
         """
+        print(f"[Dispatcher] dispatch_message called: content={content}, thread_id={thread_id}")
         # Determine target animals
         target_animals = self._resolve_targets(content, mentions)
-        
+        print(f"[Dispatcher] Target animals: {target_animals}")
+
         if not target_animals:
             return []
-        
+
         # Dispatch to each target animal
         results = []
         for animal_id in target_animals:
+            print(f"[Dispatcher] Dispatching to {animal_id}...")
             result = await self._dispatch_to_animal(
                 animal_id=animal_id,
                 content=content,
                 thread_id=thread_id,
                 exclude_connection_id=exclude_connection_id,
             )
+            print(f"[Dispatcher] Result from {animal_id}: success={result.success}, error={result.error}")
             results.append(result)
-        
+
         return results
     
     def _resolve_targets(
@@ -107,19 +111,25 @@ class AgentDispatcher:
         exclude_connection_id: Optional[str],
     ) -> DispatchResult:
         """Dispatch to a single animal and stream response."""
+        print(f"[Dispatcher] _dispatch_to_animal({animal_id}): starting...")
         try:
             # Get animal service
             try:
                 service = get_animal_service(animal_id)
+                print(f"[Dispatcher] Got service for {animal_id}")
             except ValueError as e:
+                print(f"[Dispatcher] Failed to get service for {animal_id}: {e}")
                 return DispatchResult(
                     animal_id=animal_id,
                     success=False,
                     error=str(e),
                 )
-            
+
             # Stream messages from agent
+            message_count = 0
             async for message in service.invoke(content, thread_id):
+                message_count += 1
+                print(f"[Dispatcher] Message #{message_count} from {animal_id}: {message.content[:100]}")
                 await self._broadcast_message(
                     animal_id=animal_id,
                     content=message.content,
@@ -127,17 +137,22 @@ class AgentDispatcher:
                     thread_id=thread_id,
                     exclude_connection_id=exclude_connection_id,
                 )
-            
+
+            print(f"[Dispatcher] Received {message_count} messages from {animal_id}")
+
             # Send completion indicator
             await self._broadcast_done(
                 animal_id=animal_id,
                 thread_id=thread_id,
                 exclude_connection_id=exclude_connection_id,
             )
-            
+
             return DispatchResult(animal_id=animal_id, success=True)
-            
+
         except Exception as e:
+            import traceback
+            print(f"[Dispatcher] Exception in _dispatch_to_animal({animal_id}): {e}")
+            traceback.print_exc()
             await self._broadcast_error(
                 animal_id=animal_id,
                 error=str(e),
@@ -171,20 +186,12 @@ class AgentDispatcher:
             "timestamp": datetime.utcnow().isoformat(),
         }
         
-        # Broadcast to all connections for this animal
-        sent = await self.ws_manager.broadcast_to_animal(
-            animal_id=animal_id,
+        # Broadcast to all active connections (users need to see animal responses)
+        sent = await self.ws_manager.broadcast_to_all(
             message=message,
-            exclude_connection_id=exclude_connection_id,
+            exclude_connection_id=None,  # Don't exclude anyone
         )
-        
-        # If no specific animal connections, try session broadcast
-        if sent == 0:
-            await self.ws_manager.broadcast_to_session(
-                session_id=thread_id,
-                message=message,
-                exclude_connection_id=exclude_connection_id,
-            )
+        print(f"[Dispatcher] broadcast_to_all sent={sent}")
     
     async def _broadcast_done(
         self,

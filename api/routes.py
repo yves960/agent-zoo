@@ -27,31 +27,34 @@ from utils.a2a_mentions import ANIMAL_CONFIGS as A2A_ANIMAL_CONFIGS
 
 # Import service dependencies (will be injected)
 try:
-    from services.session_manager import SessionManager, get_session_manager
     from services.invocation_tracker import InvocationTracker, get_invocation_tracker
-    from utils.a2a_router import A2ARouter, get_a2a_router
+    from services.a2a_router import A2ARouter, get_a2a_router
     from core.websocket_manager import WebSocketManager, get_ws_manager_sync
-except ImportError:
+except ImportError as e:
+    print(f"Import error: {e}")
     # Stub implementations for development
-    class SessionManager:
+    class InvocationTracker:
         pass
     class A2ARouter:
-        pass
-    class InvocationTracker:
         pass
     class WebSocketManager:
         async def connect(self, websocket, animal_id=None, already_accepted=False) -> str:
             return "stub-connection-id"
         async def close_all(self) -> None:
             pass
-    def get_session_manager() -> SessionManager:
-        return SessionManager()
+    def get_invocation_tracker() -> InvocationTracker:
+        return InvocationTracker()
     def get_a2a_router() -> A2ARouter:
         return A2ARouter()
     def get_ws_manager_sync() -> WebSocketManager:
         return WebSocketManager()
-    def get_invocation_tracker() -> InvocationTracker:
-        return InvocationTracker()
+
+# SessionManager stub (not implemented yet)
+class SessionManager:
+    pass
+
+def get_session_manager() -> SessionManager:
+    return SessionManager()
 
 router = APIRouter(
     prefix="/api",
@@ -324,6 +327,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     
     animal_id = None
     session_id = str(uuid.uuid4())
+    ws_manager = None
+    connection_id = None
     
     try:
         # Initial authentication message
@@ -361,23 +366,35 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             "message": f"Connected as {animal_id}",
         })
         
+        print(f"[WS] Connection confirmed, entering main loop. session_id={session_id}", flush=True)
+        
         # Main message loop
         while True:
             try:
+                print(f"[WS] Waiting for message... (connection_id={connection_id})", flush=True)
                 data = await websocket.receive_text()
+                print(f"[WS] Received: {data[:200]}", flush=True)
                 message = WebSocketMessage.parse_raw(data)
+                print(f"[WS] Parsed: type={message.type}, content={message.content}")
                 
-                # Handle different message types
                 if message.type == "message":
+                    # Register this connection to the thread session
+                    thread_id = message.thread_id or session_id
+                    if connection_id:
+                        await ws_manager.set_session_for_connection(connection_id, thread_id)
+                    
                     # Dispatch to agents
                     dispatcher = AgentDispatcher(ws_manager)
-                    mentions = message.mentions if hasattr(message, 'mentions') else None
+                    # Get mentions from message if available (frontend sends this)
+                    mentions = getattr(message, 'mentions', None)
+                    print(f"[WS] Dispatching: content={message.content}, mentions={mentions}", flush=True)
                     await dispatcher.dispatch_message(
                         content=message.content,
-                        thread_id=message.thread_id or session_id,
+                        thread_id=thread_id,
                         mentions=mentions,
                         exclude_connection_id=connection_id,
                     )
+                    print(f"[WS] Dispatch complete", flush=True)
                     
                 elif message.type == "ping":
                     await websocket.send_json({"type": "pong"})
@@ -389,23 +406,27 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                         "content": f"Received type: {message.type}",
                     })
                     
-            except ValidationError:
+            except ValidationError as ve:
                 # Handle text messages directly
+                print(f"[WS] ValidationError: {ve}")
                 await websocket.send_json({
                     "type": "system",
-                    "content": f"Received: {data[:100]}",
+                    "content": f"Received: {data[:100] if data else 'empty'}",
                 })
                 
     except WebSocketDisconnect:
         # Clean up connection
+        print(f"[WS] WebSocketDisconnect for {connection_id}")
         if connection_id and ws_manager:
             try:
                 await ws_manager.disconnect(connection_id)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WS] Disconnect error: {e}")
     except Exception as e:
+        print(f"[WS] Unexpected exception: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         # Send error to client
-        print(f"WebSocket error: {e}")
         try:
             await websocket.send_json({
                 "type": "error",
