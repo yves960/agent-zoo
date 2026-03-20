@@ -42,10 +42,15 @@ class AgentRegistry:
         """
         Register a configuration for an animal.
         
-        Args:
-            config: AgentConfig instance with animal configuration
+        Supports both:
+        - agents.config.AgentConfig (animal_id field)
+        - core.agent_config.AgentConfig (id field)
         """
-        self._configs[config.animal_id] = config
+        # Handle both config types - use id if available, otherwise animal_id
+        config_id = getattr(config, "id", None) or getattr(config, "animal_id", None)
+        if config_id is None:
+            raise ValueError(f"Config has no 'id' or 'animal_id' field: {config}")
+        self._configs[config_id] = config
     
     def get_service(self, animal_id: str) -> Optional[AnimalService]:
         """
@@ -66,8 +71,19 @@ class AgentRegistry:
         if service_class is None:
             return None
         
-        # Create new instance
-        instance = service_class(animal_id=animal_id, config={})
+        # Get config for this agent
+        config = self._configs.get(animal_id)
+        
+        # Create new instance:
+        # - If GenericAgentService: pass agent_config= (the Pydantic model)
+        # - Otherwise (legacy services): pass animal_id= and config={}
+        import inspect
+        sig = inspect.signature(service_class.__init__)
+        if "agent_config" in sig.parameters:
+            instance = service_class(agent_config=config)
+        else:
+            instance = service_class(animal_id=animal_id, config={})
+        
         self._instances[animal_id] = instance
         return instance
     

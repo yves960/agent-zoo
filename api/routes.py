@@ -19,7 +19,7 @@ from api.schemas import (
     WebSocketMessage,
 )
 from core.config import get_config
-from core.models import ANIMAL_CONFIGS
+from agents import get_agents_config
 from services.cli_spawner import get_cli_spawner
 from services.mcp_callback_router import get_callback_router
 from services.agent_dispatcher import AgentDispatcher
@@ -78,8 +78,9 @@ async def send_message(
         MessageResponse with success status and thread_id
     """
     try:
-        # Validate animal IDs
-        valid_animals = set(ANIMAL_CONFIGS.keys())
+        # Validate animal IDs against dynamic config
+        agents_config = get_agents_config()
+        valid_animals = {agent.id for agent in agents_config.get_enabled_agents()}
         invalid_animals = set(request.animal_ids) - valid_animals
         if invalid_animals:
             raise HTTPException(
@@ -125,11 +126,12 @@ async def get_thread(
     """
     try:
         # TODO: Implement actual thread retrieval from storage
+        agents_config = get_agents_config()
         return ThreadResponse(
             success=True,
             thread_id=thread_id,
             title=f"Thread {thread_id[:8]}",
-            participant_animals=list(ANIMAL_CONFIGS.keys()),
+            participant_animals=[a.id for a in agents_config.get_enabled_agents()],
             messages=[],
             created_at="2026-03-18T00:00:00",
         )
@@ -443,18 +445,31 @@ async def list_animals() -> Dict[str, Any]:
     """
     List all available animals and their configurations.
     
-    Returns:
-        Dict mapping animal IDs to configurations
+    Returns all enabled agents from config/agents.yaml with their
+    full configuration including id, name, species, color, description,
+    and capabilities.
     """
+    agents_config = get_agents_config()
+    
     return {
         "animals": {
-            key: {
-                "name": config["name"],
-                "species": config["species"],
-                "cli": config["cli"],
-                "color": config["color"],
+            agent.id: {
+                "id": agent.id,
+                "name": agent.name,
+                "species": agent.species,
+                "description": agent.description,
+                "color": agent.color,
+                "cli": agent.capabilities.tool.value,
+                "model": agent.capabilities.model,
+                "enabled": agent.enabled,
+                "mention_patterns": agent.mention_patterns,
+                "personality": (
+                    agent.personality.model_dump()
+                    if agent.personality
+                    else None
+                ),
             }
-            for key, config in ANIMAL_CONFIGS.items()
+            for agent in agents_config.get_enabled_agents()
         }
     }
 

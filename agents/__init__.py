@@ -2,80 +2,68 @@
 Zoo Multi-Agent System - Animal Services Package.
 
 Exports all animal agent services and provides factory functions.
-Uses registry pattern for dynamic agent loading.
+Uses registry pattern for dynamic agent loading from config/agents.yaml.
 """
 
+import os
+from pathlib import Path
 from typing import Dict, List, Optional
 
+import yaml
+
+from core.agent_config import AgentsConfig, AgentConfig
 from .base import AnimalMessage, AnimalService
-from .config import AgentConfig
+from .generic import GenericAgentService
 from .registry import AgentRegistry, registry
-from .xueqiu import XueqiuService
-from .liuliu import LiuliuService
-from .xiaohuang import XiaohuangService
-
-# OpenAI Agent - 可选导入，如果依赖未安装则跳过
-try:
-    from agents_openai.zoo_adapter import OpenAIAgentService
-    _has_openai = True
-except ImportError:
-    OpenAIAgentService = None  # type: ignore[misc,assignment]
-    _has_openai = False
 
 
-# Register service classes with the registry
-registry.register_class("xueqiu", XueqiuService)
-registry.register_class("liuliu", LiuliuService)
-registry.register_class("xiaohuang", XiaohuangService)
+def _load_agents_from_yaml() -> AgentsConfig:
+    """
+    Load agents configuration from config/agents.yaml.
+    
+    Searches for config/agents.yaml relative to this file's location.
+    """
+    # Try multiple paths to find config
+    possible_paths = [
+        Path(__file__).parent.parent / "config" / "agents.yaml",
+        Path(__file__).parent.parent / "config" / "agents.yaml",
+    ]
+    
+    # Also check AGENTS_YAML env var
+    env_path = os.environ.get("AGENTS_YAML")
+    if env_path:
+        possible_paths.insert(0, Path(env_path))
+    
+    for config_path in possible_paths:
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            return AgentsConfig.model_validate(data)
+    
+    # Return empty config if no file found
+    return AgentsConfig(agents=[])
 
-if _has_openai and OpenAIAgentService is not None:
-    registry.register_class("openai", OpenAIAgentService)  # type: ignore[arg-type]
 
-# Register default configurations
-registry.register_config(AgentConfig(
-    animal_id="xueqiu",
-    name="雪球",
-    species="雪纳瑞",
-    cli_path="opencode",
-    cli_args=["run", "-m", "bailian-coding-plan/glm-5"],
-    color="#4A90E2",
-    mention_patterns=["@雪球", "@xueqiu"],
-    enabled=True,
-))
+def _register_agents_from_config(config: AgentsConfig) -> None:
+    """
+    Dynamically register all enabled agents from config.
+    
+    All agents use GenericAgentService with their config.
+    """
+    for agent_config in config.agents:
+        if not agent_config.enabled:
+            continue
+        
+        # Register config
+        registry.register_config(agent_config)
+        
+        # Register GenericAgentService class for this agent
+        registry.register_class(agent_config.id, GenericAgentService)
 
-registry.register_config(AgentConfig(
-    animal_id="liuliu",
-    name="六六",
-    species="虎皮鹦鹉(蓝)",
-    cli_path="claude",
-    cli_args=[],
-    color="#3498DB",
-    mention_patterns=["@六六", "@liuliu"],
-    enabled=True,
-))
 
-registry.register_config(AgentConfig(
-    animal_id="xiaohuang",
-    name="小黄",
-    species="虎皮鹦鹉(黄绿)",
-    cli_path="crush",
-    cli_args=[],
-    color="#F1C40F",
-    mention_patterns=["@小黄", "@xiaohuang"],
-    enabled=True,
-))
-
-if _has_openai:
-    registry.register_config(AgentConfig(
-        animal_id="openai",
-        name="OpenAI",
-        species="AI Agent",
-        cli_path="openai",
-        cli_args=[],
-        color="#10A37F",
-        mention_patterns=["@openai"],
-        enabled=True,
-    ))
+# Load config and register agents on module import
+_agents_config = _load_agents_from_yaml()
+_register_agents_from_config(_agents_config)
 
 
 def get_animal_service(animal_id: str) -> AnimalService:
@@ -83,7 +71,7 @@ def get_animal_service(animal_id: str) -> AnimalService:
     Get a specific animal service by ID.
     
     Args:
-        animal_id: The animal identifier (xueqiu, liuliu, xiaohuang, openai)
+        animal_id: The animal identifier (e.g. xueqiu, liuliu, meiqiu)
         
     Returns:
         The configured animal service
@@ -113,6 +101,16 @@ def get_all_animal_services() -> Dict[str, AnimalService]:
     return registry.get_all_services()
 
 
+def get_agents_config() -> AgentsConfig:
+    """
+    Get the raw agents configuration.
+    
+    Returns:
+        The AgentsConfig loaded from config/agents.yaml
+    """
+    return _agents_config
+
+
 # Legacy function name for backwards compatibility
 get_animal_services = get_all_animal_services
 
@@ -123,15 +121,15 @@ __all__ = [
     "AnimalService",
     # Config
     "AgentConfig",
+    "AgentsConfig",
     # Registry
     "AgentRegistry",
     "registry",
-    # Service classes
-    "XueqiuService",
-    "LiuliuService",
-    "XiaohuangService",
+    # Generic service
+    "GenericAgentService",
     # Factory functions
     "get_animal_service",
     "get_animal_services",
     "get_all_animal_services",
+    "get_agents_config",
 ]

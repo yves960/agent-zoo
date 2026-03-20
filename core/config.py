@@ -52,7 +52,7 @@ class ZooConfig(BaseSettings):
 
     # WebSocket configuration
     ws_host: str = "0.0.0.0"
-    ws_port: int = 8002
+    ws_port: int = 8001
 
     @field_validator("animal_clis", mode="before")
     @classmethod

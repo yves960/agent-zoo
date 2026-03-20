@@ -3,7 +3,7 @@
  */
 
 // Animal types from backend
-export type AnimalType = "xueqiu" | "liuliu" | "xiaohuang" | "openai";
+export type AnimalType = "xueqiu" | "liuliu" | "xiaohuang" | "meiqiu" | "openai";
 
 export interface AnimalConfig {
   id: AnimalType;
@@ -17,6 +17,7 @@ export interface AnimalConfig {
   traits: string[];
   specialties: string[];
   greetings: string[];
+  model?: string;
 }
 
 export type AnimalStatus = "available" | "busy" | "offline";
@@ -34,6 +35,8 @@ export interface AnimalAgent {
   traits: string[];
   specialties: string[];
   greetings: string[];
+  cli?: string;
+  model?: string;
 }
 
 // Message types
@@ -109,11 +112,16 @@ export interface ThreadResponse {
 }
 
 export interface AnimalsResponse {
-  animals: Record<AnimalType, {
+  animals: Record<string, {
+    id: string;
     name: string;
     species: string;
-    cli: string;
+    description: string;
     color: string;
+    cli: string;
+    model: string;
+    enabled: boolean;
+    mention_patterns?: string[];
   }>;
 }
 
