@@ -4,10 +4,13 @@ Liuliu Service - 六六 (虎皮蓝鹦鹉) - Code Review - claude CLI
 
 import asyncio
 import json
+import re
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from services.cli_spawner import CLISpawner
 from .base import AnimalMessage, AnimalService
+
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 
 class LiuliuService(AnimalService):
@@ -62,16 +65,25 @@ class LiuliuService(AnimalService):
         event_type = event.get("type", "")
         
         if event_type == "assistant":
-            # Main assistant message
             message_data = event.get("message", {})
             content = ""
             
             if isinstance(message_data, dict):
-                # Extract text content
                 if "content" in message_data:
                     content_parts = message_data["content"]
                     if isinstance(content_parts, list):
-                        content = "\n".join(str(p) for p in content_parts)
+                        text_parts = []
+                        for p in content_parts:
+                            if isinstance(p, dict):
+                                if p.get("type") == "text":
+                                    text_parts.append(str(p.get("text", "")))
+                                elif p.get("type") == "thinking":
+                                    pass
+                                elif p.get("type") == "tool_use":
+                                    pass
+                            elif isinstance(p, str):
+                                text_parts.append(p)
+                        content = "\n".join(text_parts)
                     else:
                         content = str(content_parts)
                 elif "text" in message_data:
@@ -84,13 +96,14 @@ class LiuliuService(AnimalService):
                     metadata={
                         "source": "claude",
                         "event_type": event_type,
-                        "original": event,
                     },
                     is_complete=False,
                 )
         
+        elif event_type in ("thinking", "tool_call", "tool_use"):
+            return None
+        
         elif event_type == "message_start":
-            # Message started event
             return self.create_message(
                 content="",
                 message_type="start",
@@ -102,7 +115,6 @@ class LiuliuService(AnimalService):
             )
         
         elif event_type == "message_end":
-            # Message completed event
             return self.create_message(
                 content="",
                 message_type="complete",
@@ -147,10 +159,11 @@ class LiuliuService(AnimalService):
         def on_line(line: str, parsed: Optional[Dict[str, Any]] = None, is_error: bool = False) -> None:
             """Callback for each line of NDJSON output."""
             if is_error:
+                clean_line = ANSI_ESCAPE.sub('', line)
                 message = self.create_message(
-                    content=f"Error: {line}",
+                    content=f"Error: {clean_line}" if clean_line else "An error occurred",
                     message_type="error",
-                    metadata={"line": line},
+                    metadata={"line": clean_line},
                     is_complete=False,
                 )
                 queue.put_nowait(message)

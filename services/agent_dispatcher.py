@@ -117,29 +117,46 @@ class AgentDispatcher:
                     error=str(e),
                 )
 
-            # Stream messages from agent
+            accumulated_content = ""
+            accumulated_message_type = "text"
             message_count = 0
+            BATCH_THRESHOLD = 100
+
             async for message in service.invoke(content, thread_id):
                 message_count += 1
-                print(f"[Dispatcher] Message #{message_count} from {animal_id}: {message.content[:100]}")
+                accumulated_content += message.content
+                accumulated_message_type = message.message_type
+
+                should_flush = (
+                    message.message_type in ("complete", "error") or
+                    len(accumulated_content) >= BATCH_THRESHOLD
+                )
+
+                if should_flush and accumulated_content:
+                    print(f"[Dispatcher] Batch broadcast from {animal_id}: {accumulated_content[:100]}")
+                    await self._broadcast_message(
+                        animal_id=animal_id,
+                        content=accumulated_content,
+                        message_type=accumulated_message_type,
+                        thread_id=thread_id,
+                        mentions=mentions,
+                        exclude_connection_id=exclude_connection_id,
+                    )
+                    accumulated_content = ""
+                    accumulated_message_type = "text"
+
+            if accumulated_content:
+                print(f"[Dispatcher] Final broadcast from {animal_id}: {accumulated_content[:100]}")
                 await self._broadcast_message(
                     animal_id=animal_id,
-                    content=message.content,
-                    message_type=message.message_type,
+                    content=accumulated_content,
+                    message_type=accumulated_message_type,
                     thread_id=thread_id,
                     mentions=mentions,
                     exclude_connection_id=exclude_connection_id,
                 )
 
             print(f"[Dispatcher] Received {message_count} messages from {animal_id}")
-
-            # Send completion indicator
-            await self._broadcast_done(
-                animal_id=animal_id,
-                thread_id=thread_id,
-                exclude_connection_id=exclude_connection_id,
-            )
-
             return DispatchResult(animal_id=animal_id, success=True)
 
         except Exception as e:
@@ -158,6 +175,8 @@ class AgentDispatcher:
                 error=str(e),
             )
     
+    INTERNAL_MESSAGE_TYPES = {"thinking", "reasoning", "tool_call", "internal", "metadata", "start", "complete"}
+
     async def _broadcast_message(
         self,
         animal_id: str,
@@ -168,6 +187,8 @@ class AgentDispatcher:
         exclude_connection_id: Optional[str],
     ) -> None:
         if not content:
+            return
+        if message_type in self.INTERNAL_MESSAGE_TYPES:
             return
 
         message = {
@@ -181,18 +202,19 @@ class AgentDispatcher:
         }
 
         if mentions and len(mentions) == 1:
-            sent = await self.ws_manager.broadcast_to_agents(
-                agent_ids=mentions,
+            sent = await self.ws_manager.broadcast_to_session(
+                session_id=thread_id,
                 message=message,
                 exclude_connection_id=None,
             )
-            print(f"[Dispatcher] broadcast_to_agents({mentions}) sent={sent}")
+            print(f"[Dispatcher] broadcast_to_session({thread_id}) sent={sent}")
         else:
-            sent = await self.ws_manager.broadcast_to_all(
+            sent = await self.ws_manager.broadcast_to_session(
+                session_id=thread_id,
                 message=message,
                 exclude_connection_id=None,
             )
-            print(f"[Dispatcher] broadcast_to_all sent={sent}")
+            print(f"[Dispatcher] broadcast_to_session({thread_id}) sent={sent}")
     
     async def _broadcast_done(
         self,

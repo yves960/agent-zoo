@@ -3,10 +3,13 @@ Xiaohuang Service - 小黄 (虎皮黄绿鹦鹉) - 视觉设计 - crush CLI
 """
 
 import asyncio
+import re
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from services.cli_spawner import CLISpawner
 from .base import AnimalMessage, AnimalService
+
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 
 class XiaohuangService(AnimalService):
@@ -88,10 +91,11 @@ class XiaohuangService(AnimalService):
         def on_line(line: str, parsed: Optional[Dict[str, Any]] = None, is_error: bool = False) -> None:
             """Callback for each line of output."""
             if is_error:
+                clean_line = ANSI_ESCAPE.sub('', line)
                 message = self.create_message(
-                    content=f"Error: {line}",
+                    content=f"Error: {clean_line}" if clean_line else "An error occurred",
                     message_type="error",
-                    metadata={"line": line},
+                    metadata={"line": clean_line},
                     is_complete=False,
                 )
                 queue.put_nowait(message)

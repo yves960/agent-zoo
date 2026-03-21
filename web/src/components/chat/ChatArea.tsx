@@ -100,7 +100,7 @@ export function ChatArea() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex-1 flex flex-col min-h-0 bg-white">
       {/* Header */}
       <ChatHeader
         title={conversation.title}

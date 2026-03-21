@@ -73,13 +73,34 @@ const mergeAnimalData = (
     enabled: boolean;
     mention_patterns?: string[];
     source?: string;
-  }>
+  }>,
+  externalAgents: Record<string, {
+    id: string;
+    name: string;
+    source: string;
+    role?: string;
+    description?: string;
+    status?: string;
+    sessionId?: string;
+    directory?: string;
+  }> = {},
+  networkAgents: Record<string, {
+    id: string;
+    name: string;
+    source: string;
+    address?: string;
+    port?: number;
+    status?: string;
+  }> = {}
 ): AnimalAgent[] => {
-  return Object.values(apiAnimals).map((animal) => {
+  const animals: AnimalAgent[] = [];
+
+  // Process API animals (local/configured)
+  for (const animal of Object.values(apiAnimals)) {
     const details = ANIMAL_DETAILS[animal.id as AnimalType];
     const id = animal.id as AnimalType;
 
-    return {
+    animals.push({
       id,
       name: animal.name,
       species: animal.species,
@@ -95,8 +116,57 @@ const mergeAnimalData = (
       cli: animal.cli,
       model: animal.model,
       source: (animal.source || "local") as AgentSource,
-    };
-  });
+    });
+  }
+
+  // Process external agents (h-agent, directory, opencode-session)
+  for (const agent of Object.values(externalAgents)) {
+    const source = agent.source as AgentSource;
+    const id = agent.id as AnimalType;
+
+    animals.push({
+      id,
+      name: agent.name,
+      species: source === "h-agent" ? "AI Agent" : source === "opencode-session" ? "OpenCode Session" : "Directory Agent",
+      description: agent.description || `${source} 发现的 Agent`,
+      color: source === "h-agent" ? "#9B59B6" : source === "opencode-session" ? "#3498DB" : "#2ECC71",
+      personality: "由系统自动发现",
+      avatar: `/avatars/default.svg`,
+      status: (agent.status as AnimalStatus) || "available",
+      isFavorite: false,
+      traits: [],
+      specialties: agent.role ? [agent.role] : [],
+      greetings: [`你好！我是${agent.name}！`],
+      source,
+      sessionId: agent.sessionId,
+      discoveredAt: new Date().toISOString(),
+    });
+  }
+
+  // Process network agents
+  for (const agent of Object.values(networkAgents)) {
+    const id = agent.id as AnimalType;
+
+    animals.push({
+      id,
+      name: agent.name,
+      species: "Network Agent",
+      description: `来自 ${agent.address}:${agent.port} 的网络 Agent`,
+      color: "#E74C3C",
+      personality: "网络发现的 Agent",
+      avatar: `/avatars/default.svg`,
+      status: (agent.status as AnimalStatus) || "available",
+      isFavorite: false,
+      traits: [],
+      specialties: [],
+      greetings: [`你好！我是${agent.name}！`],
+      source: "network",
+      sourceUrl: `http://${agent.address}:${agent.port}`,
+      discoveredAt: new Date().toISOString(),
+    });
+  }
+
+  return animals;
 };
 
 export const useAnimalStore = create<AnimalState & AnimalActions>()(
@@ -166,25 +236,42 @@ export const useAnimalStore = create<AnimalState & AnimalActions>()(
       },
 
       fetchAnimals: async () => {
-        const { isLoading, lastFetched } = get();
-        // Avoid duplicate concurrent fetches; cache for 30 seconds
-        if (isLoading || (lastFetched && Date.now() - lastFetched < 30_000)) {
+        // Optimistically set loading first to prevent race conditions
+        // when multiple components call fetchAnimals simultaneously
+        const state = get();
+        const { isLoading, lastFetched, animals } = state;
+        
+        // Skip if already loading
+        if (isLoading) {
+          return;
+        }
+        
+        // Skip if cached within 30 seconds AND we already have animals
+        if (lastFetched && Date.now() - lastFetched < 30_000 && animals.length > 0) {
           return;
         }
 
         set({ isLoading: true });
         try {
-          // Use absolute URL in browser to connect to backend on different port
-          const apiUrl = typeof window !== 'undefined' && window.location.port === '3000'
-            ? 'http://localhost:8001/api/animals'
-            : '/api/animals';
-          const res = await fetch(apiUrl);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          const apiAnimals = data.animals || {};
+          const baseUrl = typeof window !== 'undefined' && window.location.port === '3000'
+            ? 'http://localhost:8001'
+            : '';
+          const apiUrl = `${baseUrl}/api/animals`;
+          const externalUrl = `${baseUrl}/api/external/agents`;
+          const networkUrl = `${baseUrl}/api/network/agents`;
+
+          const [animalsRes, externalRes, networkRes] = await Promise.all([
+            fetch(apiUrl).catch(() => null),
+            fetch(externalUrl).catch(() => null),
+            fetch(networkUrl).catch(() => null),
+          ]);
+
+          const apiAnimals = animalsRes?.ok ? (await animalsRes.json()).animals || {} : {};
+          const externalData = externalRes?.ok ? (await externalRes.json()).agents || {} : {};
+          const networkData = networkRes?.ok ? (await networkRes.json()).agents || {} : {};
 
           set({
-            animals: mergeAnimalData(apiAnimals),
+            animals: mergeAnimalData(apiAnimals, externalData, networkData),
             lastFetched: Date.now(),
             isLoading: false,
           });

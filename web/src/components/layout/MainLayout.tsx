@@ -37,7 +37,7 @@ export default function MainLayout() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className={`
-          flex-1 flex flex-col transition-all duration-300
+          flex-1 flex flex-col min-h-0 transition-all duration-300
           ${sidebarOpen ? "ml-64" : "ml-0"}
         `}
       >

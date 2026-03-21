@@ -24,9 +24,9 @@ export function MessageList({ messages, isTyping, typingAnimals }: MessageListPr
   }, [messages, isTyping]);
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+      className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
     >
       <AnimatePresence mode="popLayout">
         {messages.map((message, index) => {
