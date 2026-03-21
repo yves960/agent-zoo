@@ -5,10 +5,9 @@
 ## ✨ 特性
 
 - 🔍 **多源自动发现** - 本地配置、h-agent 团队、OpenCode 会话、mDNS 网络广播
-- 💬 **统一对话界面** - 通过 WebSocket 与任意 Agent 实时对话
-- 🎨 **卡通风格前端** - Next.js 构建的可爱界面，支持筛选和搜索
-- 🔧 **多工具支持** - opencode、claude、crush 等 CLI 工具
-- 🌐 **HTTP API 调用** - 支持通过 HTTP API 调用 h-agent 和 OpenCode 会话
+- 💬 **统一对话界面** - 通过 WebSocket 与任意 Agent 实时对话，支持流式响应
+- 🎨 **卡通风格前端** - Next.js 构建的可爱界面，支持按来源筛选 Agent
+- 🔗 **零配置接入** - 无需任何配置，启动后自动发现本机 h-agent 和 OpenCode 会话
 
 ## 快速开始
 
@@ -18,6 +17,10 @@ pip install -r requirements.txt
 
 # 启动服务
 python main.py
+
+# 如果本机有 h-agent 在运行（端口 8080）
+# 和 opencode serve 在运行（端口 4096）
+# 它们会被自动发现并展示在页面上
 ```
 
 服务启动后:
@@ -27,12 +30,38 @@ python main.py
 
 ## 🔍 Agent 来源
 
-| 来源 | 说明 |
-|------|------|
-| **本地** | `config/agents.yaml` 中配置的 Agent |
-| **h-agent** | [h-agent](https://github.com/yves960/h-agent) 团队的 planner/coder/reviewer/devops 等角色 |
-| **OpenCode 会话** | opencode serve 上运行的所有会话 |
-| **网络发现** | 通过 mDNS 广播发现的局域网内的 Agent Zoo 实例 |
+| 来源 | 发现方式 | 说明 |
+|------|----------|------|
+| **本地** | 扫描 `config/agents.yaml` | YAML 静态配置的 Agent |
+| **h-agent** | 调用 h-agent HTTP API | [h-agent](https://github.com/yves960/h-agent) 团队的 planner/coder/reviewer/devops 等角色 |
+| **OpenCode 会话** | CLI `opencode session list` | opencode serve 上运行的所有会话 |
+| **网络发现** | mDNS 广播 | 局域网内其他 Agent Zoo 实例 |
+
+### h-agent 对接
+
+Zoo 启动时自动调用 `GET http://localhost:8080/api/agents` 获取 h-agent 团队成员列表。
+
+通过 Zoo UI 可以**直接与 h-agent 的任意 Agent 对话**，支持：
+- 多轮对话（session 历史自动维护）
+- 流式 Token 响应（逐字显示）
+- 工具调用（`tool_start`/`tool_end` 事件）
+
+### OpenCode 会话对接
+
+Zoo 启动时自动调用 `opencode session list` 获取所有 OpenCode 会话。
+
+通过 Zoo UI 可以**直接与 OpenCode 会话对话**，支持：
+- 多轮对话
+- 流式响应
+- 零配置——所有 opencode serve 上的会话自动出现在列表中
+
+### 目录扫描
+
+Zoo 启动时自动扫描以下目录，发现 YAML 格式的 Agent 配置：
+- `.zoo/agents/`
+- `~/.zoo/agents/`
+
+每个 `.yaml` 文件对应一个 Agent，无需修改主配置即可扩展。
 
 ## 🎭 自定义 Agent
 
@@ -134,7 +163,7 @@ agent-zoo/
 
 ## 相关项目
 
-- [h-agent](https://github.com/yves960/h-agent) - 多角色 Agent 团队协作系统
+- [h-agent](https://github.com/yves960/h-agent) - 多角色 Agent 团队协作系统，支持 planner/coder/reviewer/devops 等角色
 
 ## 许可证
 
