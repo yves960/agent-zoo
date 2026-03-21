@@ -1,13 +1,14 @@
 # Agent Zoo 🐾
 
-一个**可配置的多 Agent 协作系统**。用户可以通过配置文件自定义 Agent 的身份、性格和能力。
+一个**多来源 Agent 自动发现与协作系统**。自动发现本机运行的 agents（本地配置、h-agent 团队、OpenCode 会话、mDNS 网络），通过统一的 Web UI 进行展示和对话。
 
 ## ✨ 特性
 
-- 🎭 **动态配置** - 通过 YAML 文件自定义 Agent 身份、性格、能力
-- 💬 **WebSocket 实时通信** - 实时多 Agent 对话
-- 🎨 **卡通风格前端** - Next.js 构建的可爱界面
+- 🔍 **多源自动发现** - 本地配置、h-agent 团队、OpenCode 会话、mDNS 网络广播
+- 💬 **统一对话界面** - 通过 WebSocket 与任意 Agent 实时对话
+- 🎨 **卡通风格前端** - Next.js 构建的可爱界面，支持筛选和搜索
 - 🔧 **多工具支持** - opencode、claude、crush 等 CLI 工具
+- 🌐 **HTTP API 调用** - 支持通过 HTTP API 调用 h-agent 和 OpenCode 会话
 
 ## 快速开始
 
@@ -24,11 +25,20 @@ python main.py
 - API 文档: http://localhost:8001/docs
 - WebSocket: ws://localhost:8001/api/ws
 
+## 🔍 Agent 来源
+
+| 来源 | 说明 |
+|------|------|
+| **本地** | `config/agents.yaml` 中配置的 Agent |
+| **h-agent** | [h-agent](https://github.com/yves960/h-agent) 团队的 planner/coder/reviewer/devops 等角色 |
+| **OpenCode 会话** | opencode serve 上运行的所有会话 |
+| **网络发现** | 通过 mDNS 广播发现的局域网内的 Agent Zoo 实例 |
+
 ## 🎭 自定义 Agent
 
 ### 配置文件
 
-编辑 `config/agents.yaml` 来自定义你的 Agent：
+编辑 `config/agents.yaml` 来配置本地 Agent：
 
 ```yaml
 agents:
@@ -54,7 +64,7 @@ agents:
         - "汪！有什么能帮你的？"
         - "来了！说吧，啥事？"
     capabilities:
-      tool: opencode          # opencode | claude | crush | openai
+      tool: opencode
       model: "minimax/MiniMax-M2.7"
       timeout: 300
 ```
@@ -76,22 +86,13 @@ agents:
 | `capabilities.tool` | CLI 工具（opencode/claude/crush/openai）|
 | `capabilities.model` | 使用的模型 |
 
-### 默认 Agent
-
-系统预置了 4 个 Agent 作为示例：
-
-| Agent | 物种 | 工具 | 角色 |
-|-------|------|------|------|
-| 煤球 | 田园犬 | opencode | 全能助手 |
-| 雪球 | 雪纳瑞 | opencode | 开发工程师 |
-| 六六 | 虎皮鹦鹉(蓝) | claude | 测试运维 |
-| 小黄 | 虎皮鹦鹉(黄绿) | crush | 安全运维 |
-
 ## API 端点
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
-| GET | `/api/animals` | 获取所有 Agent 列表 |
+| GET | `/api/animals` | 获取所有 Agent 列表（按来源筛选） |
+| GET | `/api/external/agents` | 获取 h-agent 团队成员 |
+| GET | `/api/network/agents` | 获取网络发现的 Agent |
 | POST | `/api/messages` | 发送消息 |
 | GET | `/api/threads/{thread_id}` | 获取对话线程 |
 | WebSocket | `/api/ws` | 实时通信 |
@@ -101,27 +102,39 @@ agents:
 ```
 agent-zoo/
 ├── config/
-│   └── agents.yaml       # Agent 配置文件
+│   └── agents.yaml           # Agent 配置文件
 ├── core/
-│   ├── agent_config.py   # 配置模型
-│   └── config.py         # 系统配置
+│   ├── agent_config.py        # 配置模型
+│   ├── websocket_manager.py   # WebSocket 管理
+│   └── config.py              # 系统配置
 ├── agents/
-│   ├── generic.py        # 通用 Agent 类
-│   └── registry.py       # Agent 注册
+│   ├── generic.py             # 通用 Agent 类
+│   ├── registry.py            # Agent 注册表
+│   ├── h_agent_service.py     # h-agent HTTP 调用
+│   └── opencode_service.py    # OpenCode HTTP 调用
 ├── services/
-│   ├── agent_dispatcher.py  # 消息分发
-│   └── agent_loader.py      # 配置加载
+│   ├── agent_dispatcher.py     # 消息分发
+│   ├── agent_loader.py         # 配置加载
+│   ├── h_agent_client.py      # h-agent API 客户端
+│   ├── directory_scanner.py   # 目录扫描
+│   ├── network_discovery.py   # mDNS 网络发现
+│   └── opencode_session_discovery.py  # OpenCode 会话发现
 ├── api/
-│   └── routes.py         # API 路由
-├── web/                  # Next.js 前端
-└── main.py               # 入口
+│   └── routes.py              # API 路由
+├── web/                       # Next.js 前端
+└── main.py                    # 入口
 ```
 
 ## 技术栈
 
 - **Backend**: FastAPI, WebSocket, Pydantic
-- **Frontend**: Next.js, TypeScript
+- **Frontend**: Next.js, TypeScript, Tailwind CSS
 - **Agent Tools**: opencode, claude, crush
+- **网络发现**: python-zeroconf (mDNS)
+
+## 相关项目
+
+- [h-agent](https://github.com/yves960/h-agent) - 多角色 Agent 团队协作系统
 
 ## 许可证
 
