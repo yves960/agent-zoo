@@ -24,7 +24,7 @@ const emojiCategories: EmojiCategory[] = [
   },
   {
     id: "animals",
-    name: "动物",
+    name: "Agent",
     emojis: ["🐶", "🐱", "🐼", "🦊", "🦁", "🐯", "🐨", "🐸"],
   },
   {

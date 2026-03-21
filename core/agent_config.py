@@ -44,6 +44,15 @@ class AgentCapabilities(BaseModel):
         return resolved
 
 
+class AgentSource(str, Enum):
+    """Agent source type."""
+    LOCAL = "local"
+    H_AGENT = "h-agent"
+    DIRECTORY = "directory"
+    OPENCODE_SESSION = "opencode-session"
+    NETWORK = "network"
+
+
 class AgentConfig(BaseModel):
     """Single agent configuration."""
     id: str = Field(..., description="Unique agent identifier")
@@ -57,6 +66,7 @@ class AgentConfig(BaseModel):
         default=None, description="Agent personality and background"
     )
     capabilities: AgentCapabilities = Field(default_factory=AgentCapabilities)
+    source: AgentSource = Field(default=AgentSource.LOCAL, description="Agent discovery source")
 
     @field_validator("color")
     @classmethod

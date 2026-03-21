@@ -11,7 +11,7 @@ import { formatDateTime } from "@/lib/utils";
 
 export function ConversationHistory() {
   const { conversations, setActiveConversation, deleteConversation, toggleFavorite, renameConversation } = useConversationStore();
-  const { searchQuery, setSearchQuery } = useUIStore();
+  const { searchQuery, setSearchQuery, setCurrentView } = useUIStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
@@ -87,7 +87,7 @@ export function ConversationHistory() {
               onRename={() => handleRename(conversation.id, conversation.title)}
               onDelete={() => deleteConversation(conversation.id)}
               onToggleFavorite={() => toggleFavorite(conversation.id)}
-              onClick={() => setActiveConversation(conversation.id)}
+              onClick={() => { setActiveConversation(conversation.id); setCurrentView("chat"); }}
             />
           ))
         )}
@@ -194,7 +194,7 @@ function ConversationItem({
           ))}
         </div>
         <span className="text-xs text-gray-500">
-          {conversation.participants.length} 个动物
+          {conversation.participants.length} 个Agent
         </span>
       </div>
 

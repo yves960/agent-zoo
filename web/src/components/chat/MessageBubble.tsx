@@ -25,6 +25,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     specialties: [],
     greetings: [],
     description: "",
+    source: "local" as const,
   } : undefined;
 
   return (

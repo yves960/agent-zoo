@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AnimalAgent, AnimalType, AnimalStatus } from "@/types";
+import type { AnimalAgent, AnimalType, AnimalStatus, AgentSource } from "@/types";
 
 // Fallback details for agents not fully configured in backend
 // These supplement what comes from /api/animals
@@ -45,6 +45,7 @@ interface AnimalState {
   favorites: AnimalType[];
   isLoading: boolean;
   lastFetched: number | null;
+  sourceFilter: AgentSource | "all";
 }
 
 interface AnimalActions {
@@ -53,6 +54,7 @@ interface AnimalActions {
   selectAnimal: (id: AnimalType) => void;
   deselectAnimal: (id: AnimalType) => void;
   clearSelection: () => void;
+  setSourceFilter: (filter: AgentSource | "all") => void;
   getAnimalById: (id: AnimalType) => AnimalAgent | undefined;
   getFavoriteAnimals: () => AnimalAgent[];
   getAvailableAnimals: () => AnimalAgent[];
@@ -70,6 +72,7 @@ const mergeAnimalData = (
     model: string;
     enabled: boolean;
     mention_patterns?: string[];
+    source?: string;
   }>
 ): AnimalAgent[] => {
   return Object.values(apiAnimals).map((animal) => {
@@ -91,6 +94,7 @@ const mergeAnimalData = (
       greetings: details?.greetings || [`你好！我是${animal.name}，很高兴认识你！`],
       cli: animal.cli,
       model: animal.model,
+      source: (animal.source || "local") as AgentSource,
     };
   });
 };
@@ -103,6 +107,7 @@ export const useAnimalStore = create<AnimalState & AnimalActions>()(
       favorites: [],
       isLoading: false,
       lastFetched: null,
+      sourceFilter: "all",
 
       setAnimalStatus: (id, status) => {
         set((state) => ({
@@ -144,6 +149,10 @@ export const useAnimalStore = create<AnimalState & AnimalActions>()(
         set({ selectedAnimals: [] });
       },
 
+      setSourceFilter: (filter) => {
+        set({ sourceFilter: filter });
+      },
+
       getAnimalById: (id) => {
         return get().animals.find((animal) => animal.id === id);
       },
@@ -165,7 +174,11 @@ export const useAnimalStore = create<AnimalState & AnimalActions>()(
 
         set({ isLoading: true });
         try {
-          const res = await fetch("/api/animals");
+          // Use absolute URL in browser to connect to backend on different port
+          const apiUrl = typeof window !== 'undefined' && window.location.port === '3000'
+            ? 'http://localhost:8001/api/animals'
+            : '/api/animals';
+          const res = await fetch(apiUrl);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           const apiAnimals = data.animals || {};

@@ -19,7 +19,7 @@ from api.schemas import (
     WebSocketMessage,
 )
 from core.config import get_config
-from agents import get_agents_config
+from agents import get_agents_config, registry
 from services.cli_spawner import get_cli_spawner
 from services.mcp_callback_router import get_callback_router
 from services.agent_dispatcher import AgentDispatcher
@@ -543,34 +543,60 @@ async def clear_session(
 async def list_animals() -> Dict[str, Any]:
     """
     List all available animals and their configurations.
-    
-    Returns all enabled agents from config/agents.yaml with their
-    full configuration including id, name, species, color, description,
+
+    Returns all enabled agents from config/agents.yaml AND h-agent
+    with their full configuration including id, name, species, color, description,
     and capabilities.
     """
     agents_config = get_agents_config()
-    
-    return {
-        "animals": {
-            agent.id: {
-                "id": agent.id,
-                "name": agent.name,
-                "species": agent.species,
-                "description": agent.description,
-                "color": agent.color,
-                "cli": agent.capabilities.tool.value,
-                "model": agent.capabilities.model,
-                "enabled": agent.enabled,
-                "mention_patterns": agent.mention_patterns,
-                "personality": (
-                    agent.personality.model_dump()
-                    if agent.personality
-                    else None
-                ),
-            }
-            for agent in agents_config.get_enabled_agents()
+    yaml_agent_ids = {agent.id for agent in agents_config.get_enabled_agents()}
+
+    animals_dict = {
+        agent.id: {
+            "id": agent.id,
+            "name": agent.name,
+            "species": agent.species,
+            "description": agent.description,
+            "color": agent.color,
+            "cli": agent.capabilities.tool.value,
+            "model": agent.capabilities.model,
+            "enabled": agent.enabled,
+            "mention_patterns": agent.mention_patterns,
+            "source": agent.source.value,
+            "personality": (
+                agent.personality.model_dump()
+                if agent.personality
+                else None
+            ),
         }
+        for agent in agents_config.get_enabled_agents()
     }
+
+    for animal_id in registry.get_all_animal_ids():
+        if animal_id in yaml_agent_ids:
+            continue
+        config = registry.get_config(animal_id)
+        if config is None:
+            continue
+        animals_dict[animal_id] = {
+            "id": config.id,
+            "name": config.name,
+            "species": config.species,
+            "description": config.description,
+            "color": config.color,
+            "cli": config.capabilities.tool.value,
+            "model": config.capabilities.model,
+            "enabled": config.enabled,
+            "mention_patterns": config.mention_patterns,
+            "source": config.source.value,
+            "personality": (
+                config.personality.model_dump()
+                if config.personality
+                else None
+            ),
+        }
+
+    return {"animals": animals_dict}
 
 
 @router.get("/health", response_model=Dict[str, str])
@@ -585,6 +611,86 @@ async def health_check() -> Dict[str, str]:
         "status": "healthy",
         "service": "zoo-api",
         "version": "1.0.0",
+    }
+
+
+# ==================== External Agent Discovery Routes ====================
+
+@router.get("/external/agents")
+async def list_external_agents():
+    """
+    Aggregate all discovered agents from h-agent, directory scan, and OpenCode sessions.
+    
+    Returns agents from all discovery sources except local config.
+    """
+    from services.h_agent_client import HAgentClient
+    from services.directory_scanner import DirectoryScanner
+    from services.opencode_session_discovery import OpenCodeSessionDiscovery
+    
+    all_agents = {}
+    
+    # 1. h-agent agents
+    h_client = HAgentClient()
+    for agent in h_client.fetch_agents():
+        agent_id = f"h-agent:{agent.id}"
+        all_agents[agent_id] = {
+            "id": agent_id,
+            "name": agent.name,
+            "source": "h-agent",
+            "role": agent.role,
+            "description": agent.description,
+            "status": "available",
+        }
+    
+    # 2. Directory scanned agents
+    scanner = DirectoryScanner()
+    for discovered in scanner.scan():
+        agent_id = f"directory:{discovered.agent_id}"
+        all_agents[agent_id] = {
+            "id": agent_id,
+            "name": discovered.name,
+            "source": "directory",
+            "status": "available",
+        }
+    
+    # 3. OpenCode sessions
+    opencode = OpenCodeSessionDiscovery()
+    for session in opencode.fetch_sessions():
+        agent_id = f"opencode-session:{session.session_id}"
+        all_agents[agent_id] = {
+            "id": agent_id,
+            "name": session.name,
+            "source": "opencode-session",
+            "status": session.status,
+            "sessionId": session.session_id,
+            "directory": session.directory,
+        }
+    
+    return {"agents": all_agents}
+
+
+@router.get("/network/agents")
+async def list_network_agents():
+    """
+    List discovered agents on the local network via mDNS.
+    """
+    from services.network_discovery import NetworkDiscoveryService
+    
+    discovery = NetworkDiscoveryService()
+    agents = discovery.get_discovered_agents()
+    
+    return {
+        "agents": {
+            a.name: {
+                "id": f"network:{a.name}",
+                "name": a.name,
+                "source": "network",
+                "address": a.address,
+                "port": a.port,
+                "status": "available",
+            }
+            for a in agents
+        }
     }
 
 

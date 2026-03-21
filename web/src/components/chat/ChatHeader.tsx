@@ -55,7 +55,7 @@ export function ChatHeader({ title, participants, onClose, onVideoCall, onMenuCl
           <h3 className="font-semibold text-gray-800 text-sm">{title}</h3>
           <div className="flex items-center gap-1 text-xs text-gray-500">
             <StatusIndicator status="available" size="sm" />
-            <span>{activeParticipants.length} 个动物在线</span>
+            <span>{activeParticipants.length} 个Agent在线</span>
           </div>
         </div>
       </div>

@@ -19,6 +19,7 @@ interface UseWebSocketReturn {
 export function useWebSocket(): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldReconnectRef = useRef(true);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export function useWebSocket(): UseWebSocketReturn {
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
   const disconnect = useCallback(() => {
+    shouldReconnectRef.current = false;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -132,13 +134,14 @@ export function useWebSocket(): UseWebSocketReturn {
         setIsConnected(false);
         setIsConnecting(false);
         
-        // Attempt reconnection after delay
-        reconnectTimeoutRef.current = setTimeout(() => {
-          // Use a flag to avoid stale closure issue
-          if (wsRef.current?.readyState !== WebSocket.OPEN) {
-            connect();
-          }
-        }, 3000);
+        // Only attempt reconnection if not explicitly disconnected
+        if (shouldReconnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (shouldReconnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+              connect();
+            }
+          }, 3000);
+        }
       };
     } catch {
       setError("无法建立连接");

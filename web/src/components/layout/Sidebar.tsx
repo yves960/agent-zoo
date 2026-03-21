@@ -15,7 +15,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: "chat", label: "对话", icon: MessageSquare },
   { id: "history", label: "历史", icon: History },
-  { id: "animals", label: "动物", icon: Users },
+  { id: "animals", label: "Agent", icon: Users },
 ];
 
 interface SidebarProps {
@@ -27,7 +27,7 @@ export function Sidebar({ onNewChat }: SidebarProps) {
 
   return (
     <motion.aside
-      initial={{ x: -100, opacity: 0 }}
+      initial={false}
       animate={{ x: 0, opacity: 1 }}
       className={`
         fixed left-0 top-0 h-full bg-white border-r border-gray-100 z-40

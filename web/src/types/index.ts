@@ -22,6 +22,8 @@ export interface AnimalConfig {
 
 export type AnimalStatus = "available" | "busy" | "offline";
 
+export type AgentSource = "local" | "h-agent" | "opencode-session" | "network";
+
 export interface AnimalAgent {
   id: AnimalType;
   name: string;
@@ -37,6 +39,10 @@ export interface AnimalAgent {
   greetings: string[];
   cli?: string;
   model?: string;
+  source: AgentSource;
+  sourceUrl?: string;
+  sessionId?: string;
+  discoveredAt?: string;
 }
 
 // Message types

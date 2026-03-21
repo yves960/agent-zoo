@@ -206,11 +206,10 @@ class AgentDispatcher:
             "thread_id": thread_id,
             "timestamp": datetime.utcnow().isoformat(),
         }
-        
-        await self.ws_manager.broadcast_to_animal(
-            animal_id=animal_id,
+        sent = await self.ws_manager.broadcast_to_session(
+            session_id=thread_id,
             message=message,
-            exclude_connection_id=exclude_connection_id,
+            exclude_connection_id=None,
         )
     
     async def _broadcast_error(

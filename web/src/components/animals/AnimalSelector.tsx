@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Users, Sparkles } from "lucide-react";
+import { useEffect } from "react";
 import { useAnimalStore } from "@/stores/animalStore";
 import { useConversationStore } from "@/stores/conversationStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -15,7 +16,13 @@ interface AnimalSelectorProps {
 }
 
 export function AnimalSelector({ isOpen, onClose }: AnimalSelectorProps) {
-  const { animals, selectedAnimals, selectAnimal, deselectAnimal, clearSelection, getFavoriteAnimals } = useAnimalStore();
+  const { animals, selectedAnimals, selectAnimal, deselectAnimal, clearSelection, getFavoriteAnimals, fetchAnimals } = useAnimalStore();
+  
+  useEffect(() => {
+    if (isOpen) {
+      fetchAnimals();
+    }
+  }, [isOpen, fetchAnimals]);
   const { createConversation } = useConversationStore();
   const { setCurrentView } = useUIStore();
   
@@ -74,8 +81,8 @@ export function AnimalSelector({ isOpen, onClose }: AnimalSelectorProps) {
                     <Users className="w-6 h-6 text-cartoon-primary" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-800">选择动物伙伴</h2>
-                    <p className="text-sm text-gray-500">选择你想一起聊天的动物</p>
+                    <h2 className="text-xl font-bold text-gray-800">选择协作Agent</h2>
+                    <p className="text-sm text-gray-500">选择你想一起聊天的Agent</p>
                   </div>
                 </div>
                 <button
@@ -94,7 +101,7 @@ export function AnimalSelector({ isOpen, onClose }: AnimalSelectorProps) {
                   className="mt-4 flex items-center gap-2 text-sm text-cartoon-primary"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>已选择 {selectedAnimals.length} 个动物</span>
+                  <span>已选择 {selectedAnimals.length} 个Agent</span>
                 </motion.div>
               )}
             </div>
@@ -106,7 +113,7 @@ export function AnimalSelector({ isOpen, onClose }: AnimalSelectorProps) {
                 <div className="mb-6">
                   <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-yellow-400" />
-                    收藏的动物
+                    收藏的Agent
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {favoriteAnimals.map((animal) => (
@@ -125,7 +132,7 @@ export function AnimalSelector({ isOpen, onClose }: AnimalSelectorProps) {
               {/* All animals */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-500 mb-3">
-                  所有动物
+                  所有Agent
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {otherAnimals.map((animal) => (

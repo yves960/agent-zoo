@@ -88,7 +88,7 @@ export function MentionDropdown({
         {/* Header */}
         <div className="px-3 py-2 bg-gradient-to-r from-cartoon-primary/10 to-cartoon-secondary/10 border-b border-gray-100">
           <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            提及动物
+            提及Agent
           </h3>
         </div>
 

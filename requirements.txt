@@ -7,3 +7,6 @@ redis>=4.6
 sqlalchemy>=2.0
 aiosqlite>=0.19
 python-dotenv>=1.0
+python-zeroconf>=0.32
+watchdog>=3.0.0
+httpx>=0.25.0
