@@ -98,6 +98,8 @@ class MockWebSocket {
 
   send = jest.fn();
   close = jest.fn();
+  addEventListener = jest.fn();
+  removeEventListener = jest.fn();
 }
 
 Object.defineProperty(window, 'WebSocket', {

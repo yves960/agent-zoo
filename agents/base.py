@@ -88,7 +88,7 @@ class AnimalService(ABC):
         thread_id: str,
         *args: Any,
         **kwargs: Any,
-    ) -> AsyncGenerator[AnimalMessage, None]:
+    ):
         """
         Invoke the animal agent with a prompt.
         

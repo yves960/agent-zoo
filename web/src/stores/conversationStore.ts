@@ -2,38 +2,82 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Message, Conversation, AnimalAgent, AnimalType } from "@/types";
 
+const API_BASE_URL = "http://localhost:8001";
+
 interface ConversationState {
   conversations: Conversation[];
   activeConversationId: string | null;
-  isTyping: Record<string, boolean>; // conversationId -> isTyping
+  isTyping: Record<string, boolean>;
+  hydrated: boolean;
+  loading: boolean;
+  error: string | null;
 }
 
 interface ConversationActions {
-  // Conversation CRUD
   createConversation: (title: string, participants: AnimalAgent[]) => Conversation;
   updateConversation: (id: string, updates: Partial<Conversation>) => void;
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, newTitle: string) => void;
   toggleFavorite: (id: string) => void;
   
-  // Messages
   addMessage: (conversationId: string, message: Message) => void;
   setTyping: (conversationId: string, isTyping: boolean) => void;
   
-  // Session management
   setActiveConversation: (id: string | null) => void;
   endConversation: (id: string, saveToHistory?: boolean) => void;
   getConversationById: (id: string) => Conversation | undefined;
   getActiveConversation: () => Conversation | undefined;
   
-  // Queries
   getConversationsByAnimal: (animalId: AnimalType) => Conversation[];
   getFavoriteConversations: () => Conversation[];
   searchConversations: (query: string) => Conversation[];
   getSortedConversations: () => Conversation[];
+
+  initializeStore: () => Promise<void>;
+  clearError: () => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
+
+async function fetchConversationsFromBackend(): Promise<Conversation[]> {
+  const response = await fetch(`${API_BASE_URL}/api/conversations`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch conversations: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.conversations || [];
+}
+
+async function createConversationOnBackend(conversation: Conversation): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/conversations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(conversation),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create conversation: ${response.status}`);
+  }
+}
+
+async function updateConversationOnBackend(id: string, updates: Partial<Conversation>): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/conversations/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update conversation: ${response.status}`);
+  }
+}
+
+async function deleteConversationOnBackend(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/conversations/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete conversation: ${response.status}`);
+  }
+}
 
 export const useConversationStore = create<ConversationState & ConversationActions>()(
   persist(
@@ -41,6 +85,30 @@ export const useConversationStore = create<ConversationState & ConversationActio
       conversations: [],
       activeConversationId: null,
       isTyping: {},
+      hydrated: false,
+      loading: false,
+      error: null,
+
+      initializeStore: async () => {
+        set({ loading: true, error: null });
+        try {
+          const backendConversations = await fetchConversationsFromBackend();
+          set({
+            conversations: backendConversations,
+            hydrated: true,
+            loading: false,
+          });
+        } catch (err) {
+          console.error("Failed to fetch conversations from backend:", err);
+          set({
+            error: err instanceof Error ? err.message : "Failed to load conversations",
+            loading: false,
+            hydrated: true,
+          });
+        }
+      },
+
+      clearError: () => set({ error: null }),
 
       createConversation: (title, participants) => {
         const newConversation: Conversation = {
@@ -59,6 +127,10 @@ export const useConversationStore = create<ConversationState & ConversationActio
           conversations: [newConversation, ...state.conversations],
           activeConversationId: newConversation.id,
         }));
+
+        createConversationOnBackend(newConversation).catch((err) => {
+          console.error("Failed to sync createConversation to backend:", err);
+        });
         
         return newConversation;
       },
@@ -69,6 +141,10 @@ export const useConversationStore = create<ConversationState & ConversationActio
             conv.id === id ? { ...conv, ...updates, updatedAt: new Date() } : conv
           ),
         }));
+
+        updateConversationOnBackend(id, updates).catch((err) => {
+          console.error("Failed to sync updateConversation to backend:", err);
+        });
       },
 
       deleteConversation: (id) => {
@@ -76,6 +152,10 @@ export const useConversationStore = create<ConversationState & ConversationActio
           conversations: state.conversations.filter((conv) => conv.id !== id),
           activeConversationId: state.activeConversationId === id ? null : state.activeConversationId,
         }));
+
+        deleteConversationOnBackend(id).catch((err) => {
+          console.error("Failed to sync deleteConversation to backend:", err);
+        });
       },
 
       renameConversation: (id, newTitle) => {
@@ -163,11 +243,9 @@ export const useConversationStore = create<ConversationState & ConversationActio
 
       getSortedConversations: () => {
         return [...get().conversations].sort((a, b) => {
-          // Favorites first
           if (a.isFavorite !== b.isFavorite) {
             return a.isFavorite ? -1 : 1;
           }
-          // Then by updated time (newest first)
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
         });
       },

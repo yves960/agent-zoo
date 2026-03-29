@@ -1,11 +1,15 @@
 """FastAPI routes for Zoo Multi-Agent System API."""
 
+import asyncio
 import json
+import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
+
+logger = logging.getLogger("api")
 
 from api.schemas import (
     CancelInvocationRequest,
@@ -24,6 +28,7 @@ from services.cli_spawner import get_cli_spawner
 from services.mcp_callback_router import get_callback_router
 from services.agent_dispatcher import AgentDispatcher
 from utils.a2a_mentions import ANIMAL_CONFIGS as A2A_ANIMAL_CONFIGS
+from services.conversation_storage import get_conversation_storage, ConversationStorage
 
 # Import service dependencies (will be injected)
 try:
@@ -369,38 +374,54 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             "message": f"Connected as {animal_id}",
         })
         
-        print(f"[WS] Connection confirmed, entering main loop. session_id={session_id}", flush=True)
+        logger.debug("Connection confirmed, entering main loop. session_id=%s", session_id)
         
         # Main message loop
         while True:
             try:
-                print(f"[WS] Waiting for message... (connection_id={connection_id})", flush=True)
+                logger.debug("Waiting for message... (connection_id=%s)", connection_id)
                 data = await websocket.receive_text()
-                print(f"[WS] Received: {data[:200]}", flush=True)
-                message = WebSocketMessage.parse_raw(data)
-                print(f"[WS] Parsed: type={message.type}, content={message.content}")
+                logger.debug("Received: %s", data[:200])
+                message = WebSocketMessage.model_validate_json(data)
+                logger.debug("Parsed: type=%s, content=%s, thread_id=%s", message.type, message.content, getattr(message, 'thread_id', 'N/A'))
                 
                 if message.type == "message":
+                    thread_id = message.thread_id or session_id
+                    logger.debug("Message handler: connection_id=%s, thread_id=%s, session_id=%s", connection_id, thread_id, session_id)
                     # Register this connection to the thread session
                     thread_id = message.thread_id or session_id
                     if connection_id:
                         await ws_manager.set_session_for_connection(connection_id, thread_id)
                     
-                    # Dispatch to agents
-                    dispatcher = AgentDispatcher(ws_manager)
                     # Get mentions from message if available (frontend sends this)
                     mentions = getattr(message, 'mentions', None)
-                    print(f"[WS] Dispatching: content={message.content}, mentions={mentions}", flush=True)
-                    await dispatcher.dispatch_message(
+                    logger.debug("Dispatching: content=%s, mentions=%s", message.content, mentions)
+                    
+                    # Send "typing" indicator immediately
+                    await websocket.send_json({"type": "typing", "thread_id": thread_id})
+                    
+                    # Dispatch to agents in background (non-blocking)
+                    # This allows responses to be sent as they arrive without waiting for all agents
+                    dispatcher = AgentDispatcher(ws_manager)
+                    asyncio.create_task(dispatcher.dispatch_message(
                         content=message.content,
                         thread_id=thread_id,
                         mentions=mentions,
                         exclude_connection_id=connection_id,
-                    )
-                    print(f"[WS] Dispatch complete", flush=True)
-                    
+                    ))
+                    logger.debug("Dispatch started in background")
                 elif message.type == "ping":
                     await websocket.send_json({"type": "pong"})
+                
+                elif message.type == "connect":
+                    thread_id = message.thread_id or session_id
+                    logger.debug("Connect handler: connection_id=%s, thread_id=%s, session_id=%s", connection_id, thread_id, session_id)
+                    logger.debug("Session connections before: %s", ws_manager.session_connections.keys())
+                    if connection_id:
+                        success = await ws_manager.set_session_for_connection(connection_id, thread_id)
+                        logger.debug("set_session_for_connection result: %s", success)
+                        logger.debug("Session connections after: %s", ws_manager.session_connections.keys())
+                    await websocket.send_json({"type": "connected", "session_id": thread_id})
                     
                 else:
                     # Unknown message type
@@ -411,7 +432,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     
             except ValidationError as ve:
                 # Handle text messages directly
-                print(f"[WS] ValidationError: {ve}")
+                logger.warning("ValidationError: %s", ve)
                 await websocket.send_json({
                     "type": "system",
                     "content": f"Received: {data[:100] if data else 'empty'}",
@@ -419,16 +440,14 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 
     except WebSocketDisconnect:
         # Clean up connection
-        print(f"[WS] WebSocketDisconnect for {connection_id}")
+        logger.info("WebSocketDisconnect for %s", connection_id)
         if connection_id and ws_manager:
             try:
                 await ws_manager.disconnect(connection_id)
             except Exception as e:
-                print(f"[WS] Disconnect error: {e}")
+                logger.error("Disconnect error: %s", e)
     except Exception as e:
-        print(f"[WS] Unexpected exception: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Unexpected exception: %s: %s", type(e).__name__, e)
         # Send error to client
         try:
             await websocket.send_json({
@@ -535,6 +554,117 @@ async def clear_session(
             session_id=session_id,
             error=str(e),
         )
+
+
+# ==================== Conversation Routes ====================
+
+@router.get("/conversations", response_model=List[Dict[str, Any]])
+async def list_conversations(
+    storage: ConversationStorage = Depends(get_conversation_storage),
+) -> List[Dict[str, Any]]:
+    """
+    List all conversations (summary without full messages for performance).
+    """
+    try:
+        return storage.list_conversations()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/conversations", response_model=Dict[str, Any])
+async def create_conversation(
+    title: str = "New Conversation",
+    participants: Optional[List[Dict[str, Any]]] = None,
+    initial_messages: Optional[List[Dict[str, Any]]] = None,
+    storage: ConversationStorage = Depends(get_conversation_storage),
+) -> Dict[str, Any]:
+    """
+    Create a new conversation.
+
+    Args:
+        title: Conversation title (default: "New Conversation").
+        participants: Optional list of participant agent objects.
+        initial_messages: Optional list of initial messages.
+    """
+    try:
+        return storage.create_conversation(
+            title=title,
+            participants=participants or [],
+            initial_messages=initial_messages or [],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversations/{conversation_id}", response_model=Dict[str, Any])
+async def get_conversation(
+    conversation_id: str,
+    storage: ConversationStorage = Depends(get_conversation_storage),
+) -> Dict[str, Any]:
+    """
+    Get a single conversation with full message history.
+
+    Args:
+        conversation_id: The conversation ID.
+    """
+    conversation = storage.get_conversation(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail=f"Conversation '{conversation_id}' not found")
+    return conversation
+
+
+@router.put("/conversations/{conversation_id}", response_model=Dict[str, Any])
+async def update_conversation(
+    conversation_id: str,
+    title: Optional[str] = None,
+    messages: Optional[List[Dict[str, Any]]] = None,
+    participants: Optional[List[Dict[str, Any]]] = None,
+    status: Optional[str] = None,
+    is_favorite: Optional[bool] = None,
+    unread_count: Optional[int] = None,
+    storage: ConversationStorage = Depends(get_conversation_storage),
+) -> Dict[str, Any]:
+    """
+    Update a conversation.
+
+    Args:
+        conversation_id: The conversation ID.
+        title: New title (optional).
+        messages: New messages list (optional).
+        participants: New participants list (optional).
+        status: New status - active/paused/ended (optional).
+        is_favorite: New favorite status (optional).
+        unread_count: New unread count (optional).
+    """
+    result = storage.update_conversation(
+        conversation_id,
+        title=title,
+        messages=messages,
+        participants=participants,
+        status=status,
+        is_favorite=is_favorite,
+        unread_count=unread_count,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Conversation '{conversation_id}' not found")
+    return result
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    storage: ConversationStorage = Depends(get_conversation_storage),
+) -> Dict[str, Any]:
+    """
+    Delete a conversation.
+
+    Args:
+        conversation_id: The conversation ID.
+    """
+    deleted = storage.delete_conversation(conversation_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Conversation '{conversation_id}' not found")
+    return {"success": True, "id": conversation_id}
 
 
 # ==================== Utility Routes ====================

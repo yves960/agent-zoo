@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AnimalAgent } from "@/types";
 import { AnimalAvatar } from "@/components/animals/AnimalAvatar";
@@ -21,8 +21,8 @@ export function MentionDropdown({
   onClose,
 }: MentionDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Filter animals by name or id matching the filter text
   const filteredAnimals = useMemo(() => {
     const normalizedFilter = filter.toLowerCase().trim();
     if (!normalizedFilter) return animals;
@@ -33,6 +33,32 @@ export function MentionDropdown({
       animal.species.toLowerCase().includes(normalizedFilter)
     );
   }, [animals, filter]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filteredAnimals]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setSelectedIndex((prev) =>
+          prev < filteredAnimals.length - 1 ? prev + 1 : prev
+        );
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+      } else if (event.key === "Enter" && filteredAnimals.length > 0) {
+        event.preventDefault();
+        onSelect(filteredAnimals[selectedIndex]);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [filteredAnimals, selectedIndex, onSelect]);
 
   // Handle click outside to close
   useEffect(() => {
@@ -103,7 +129,11 @@ export function MentionDropdown({
               whileHover={{ backgroundColor: "rgba(255, 107, 157, 0.08)" }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleSelect(animal)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-cartoon-primary/5"
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-cartoon-primary/5 ${
+                index === selectedIndex
+                  ? "bg-cartoon-primary/10 ring-2 ring-cartoon-primary/30"
+                  : ""
+              }`}
             >
               <AnimalAvatar animal={animal} size="sm" />
               

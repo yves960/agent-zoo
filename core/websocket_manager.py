@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from typing import Dict, List, Optional, Set
 from uuid import uuid4
 
@@ -11,6 +12,8 @@ from pydantic import BaseModel
 
 from core.config import get_config
 from core.models import AnimalType
+
+logger = logging.getLogger("ws_manager")
 
 
 class WSConnection:
@@ -108,18 +111,25 @@ class WebSocketManager:
         exclude_connection_id: Optional[str] = None
     ) -> int:
         """Broadcast message to all connections in a session."""
+        logger.debug("broadcast_to_session: session_id=%s, message_type=%s", session_id, message.get('type'))
+        logger.debug("session_connections keys: %s", list(self.session_connections.keys()))
         sent = 0
         if session_id in self.session_connections:
             connection_ids = self.session_connections[session_id].copy()
+            logger.debug("Found %d connections for session", len(connection_ids))
             for conn_id in connection_ids:
                 if conn_id == exclude_connection_id:
+                    logger.debug("Skipping excluded connection %s", conn_id)
                     continue
                 if conn_id in self.active_connections:
                     try:
                         await self.active_connections[conn_id].ws.send_json(message)
                         sent += 1
-                    except Exception:
+                    except Exception as e:
+                        logger.warning("Failed to send to %s: %s", conn_id, e)
                         await self.disconnect(conn_id)
+        else:
+            logger.warning("session_id NOT FOUND in session_connections!")
         return sent
 
     async def send_to_animal(self, animal_id: AnimalType, message: dict) -> bool:
@@ -141,12 +151,16 @@ class WebSocketManager:
     ) -> bool:
         """Associate a connection with a session."""
         async with self._lock:
+            logger.debug("set_session_for_connection: connection_id=%s, session_id=%s", connection_id, session_id)
+            logger.debug("active_connections keys: %s", list(self.active_connections.keys()))
             if connection_id in self.active_connections:
                 self.active_connections[connection_id].session_id = session_id
                 if session_id not in self.session_connections:
                     self.session_connections[session_id] = set()
                 self.session_connections[session_id].add(connection_id)
+                logger.debug("Registered. session_connections now: %s", {k: len(v) for k, v in self.session_connections.items()})
                 return True
+            logger.warning("connection_id not found in active_connections!")
             return False
 
     async def get_connections_for_animal(

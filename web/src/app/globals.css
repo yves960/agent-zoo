@@ -77,3 +77,12 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Mention highlighting */
+.mention {
+  background-color: rgba(255, 107, 157, 0.15);
+  color: #FF6B9D;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 500;
+}

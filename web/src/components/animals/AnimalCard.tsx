@@ -23,6 +23,11 @@ export function AnimalCard({
   compact = false 
 }: AnimalCardProps) {
   const { toggleFavorite } = useAnimalStore();
+  
+  // Defensive check for undefined animal
+  if (!animal || !animal.id) {
+    return null;
+  }
 
   return (
     <motion.div

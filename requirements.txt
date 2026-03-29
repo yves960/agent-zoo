@@ -10,3 +10,4 @@ python-dotenv>=1.0
 python-zeroconf>=0.32
 watchdog>=3.0.0
 httpx>=0.25.0
+requests>=2.31.0

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAnimalStore } from "@/stores/animalStore";
+import { useUIStore } from "@/stores/uiStore";
 import { AnimalCard } from "@/components/animals/AnimalCard";
 import { Sparkles } from "lucide-react";
+import type { AgentSource } from "@/types";
 
 const tabs = [
   { value: "all" as const, label: "全部" },
@@ -13,12 +15,26 @@ const tabs = [
   { value: "network" as const, label: "网络" },
 ];
 
-export function AnimalsView() {
-  const { animals, sourceFilter, setSourceFilter, fetchAnimals } = useAnimalStore();
+interface AnimalsViewProps {
+  onOpenSelector?: () => void;
+}
+
+export function AnimalsView({ onOpenSelector }: AnimalsViewProps) {
+  const { animals, fetchAnimals, selectAnimal, setSourceFilter: setStoreSourceFilter } = useAnimalStore();
+  const { setCurrentView } = useUIStore();
+  
+  // Local state for sourceFilter to ensure reactive re-renders
+  const [sourceFilter, setSourceFilter] = useState<AgentSource | "all">("all");
   
   useEffect(() => {
     fetchAnimals();
   }, [fetchAnimals]);
+  
+  // Sync local filter to store (for persistence)
+  const handleFilterChange = (filter: AgentSource | "all") => {
+    setSourceFilter(filter);
+    setStoreSourceFilter(filter);
+  };
   
   const filteredAnimals = sourceFilter === "all" 
     ? animals 
@@ -26,6 +42,15 @@ export function AnimalsView() {
   
   const favoriteAnimals = filteredAnimals.filter((a) => a.isFavorite);
   const otherAnimals = filteredAnimals.filter((a) => !a.isFavorite);
+
+  const handleAnimalClick = (animalId: string) => {
+    selectAnimal(animalId as import("@/types").AnimalType);
+    // Open the selector modal (for multi-select flow)
+    if (onOpenSelector) {
+      onOpenSelector();
+    }
+    setCurrentView("chat");
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -39,7 +64,7 @@ export function AnimalsView() {
         {tabs.map((tab) => (
           <button
             key={tab.value}
-            onClick={() => setSourceFilter(tab.value)}
+            onClick={() => handleFilterChange(tab.value)}
             className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
               sourceFilter === tab.value
                 ? "bg-blue-500 text-white"
@@ -62,7 +87,7 @@ export function AnimalsView() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {favoriteAnimals.map((animal) => (
-                <AnimalCard key={animal.id} animal={animal} showFavorite />
+                <AnimalCard key={animal.id} animal={animal} showFavorite onClick={() => handleAnimalClick(animal.id)} />
               ))}
             </div>
           </div>
@@ -72,9 +97,15 @@ export function AnimalsView() {
         <div>
           <h3 className="text-sm font-semibold text-gray-500 mb-3">所有Agent</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {otherAnimals.map((animal) => (
-              <AnimalCard key={animal.id} animal={animal} showFavorite />
-            ))}
+            {otherAnimals.length === 0 ? (
+              <p className="text-gray-400 text-sm col-span-full text-center py-8">
+                {sourceFilter === "all" ? "暂无Agent" : `暂无${tabs.find(t => t.value === sourceFilter)?.label}来源的Agent`}
+              </p>
+            ) : (
+              otherAnimals.map((animal) => (
+                <AnimalCard key={animal.id} animal={animal} showFavorite onClick={() => handleAnimalClick(animal.id)} />
+              ))
+            )}
           </div>
         </div>
       </div>

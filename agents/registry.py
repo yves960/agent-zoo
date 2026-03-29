@@ -7,7 +7,7 @@ Provides a registry pattern for dynamic agent registration and retrieval.
 from typing import Dict, List, Optional, Type
 
 from .base import AnimalService
-from .config import AgentConfig
+from core.agent_config import AgentConfig
 
 
 class AgentRegistry:
@@ -42,15 +42,12 @@ class AgentRegistry:
         """
         Register a configuration for an animal.
         
-        Supports both:
-        - agents.config.AgentConfig (animal_id field)
-        - core.agent_config.AgentConfig (id field)
+        Args:
+            config: AgentConfig with 'id' field for unique identifier
         """
-        # Handle both config types - use id if available, otherwise animal_id
-        config_id = getattr(config, "id", None) or getattr(config, "animal_id", None)
-        if config_id is None:
-            raise ValueError(f"Config has no 'id' or 'animal_id' field: {config}")
-        self._configs[config_id] = config
+        if not hasattr(config, 'id') or config.id is None:
+            raise ValueError(f"Config must have 'id' field: {config}")
+        self._configs[config.id] = config
     
     def get_service(self, animal_id: str) -> Optional[AnimalService]:
         """

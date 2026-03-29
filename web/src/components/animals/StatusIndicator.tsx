@@ -21,7 +21,7 @@ const sizeClasses = {
 };
 
 export function StatusIndicator({ status, size = "md" }: StatusIndicatorProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig.offline;
   const sizeClass = sizeClasses[size];
 
   return (

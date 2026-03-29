@@ -73,17 +73,16 @@ def get_a2a_router() -> Optional[A2ARouter]:
         A2ARouter or None if not available
     """
     if SERVICE_IMPORTS_AVAILABLE:
-        # Need agent_services dict for A2ARouter init
         try:
             from agents.base import AgentService
-            from agents.xueqiu import XueqiuService
-            from agents.liuliu import LiuliuService
-            from agents.xiaohuang import XiaohuangService
+            from agents.opencode_agent import OpenCodeAgent
+            from agents.claude_agent import ClaudeAgent
+            from agents.crush_agent import CrushAgent
             
             agent_services = {
-                "xueqiu": XueqiuService(),
-                "liuliu": LiuliuService(),
-                "xiaohuang": XiaohuangService(),
+                "xueqiu": OpenCodeAgent(),
+                "liuliu": ClaudeAgent(),
+                "xiaohuang": CrushAgent(),
             }
             return get_a2a_router(agent_services=agent_services)
         except ImportError:

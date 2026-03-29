@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Users, Sparkles } from "lucide-react";
+import { X, Users, Sparkles, Loader2 } from "lucide-react";
 import { useEffect } from "react";
 import { useAnimalStore } from "@/stores/animalStore";
 import { useConversationStore } from "@/stores/conversationStore";
@@ -16,7 +16,7 @@ interface AnimalSelectorProps {
 }
 
 export function AnimalSelector({ isOpen, onClose }: AnimalSelectorProps) {
-  const { animals, selectedAnimals, selectAnimal, deselectAnimal, clearSelection, getFavoriteAnimals, fetchAnimals } = useAnimalStore();
+  const { animals, selectedAnimals, selectAnimal, deselectAnimal, clearSelection, getFavoriteAnimals, fetchAnimals, isLoading } = useAnimalStore();
   
   useEffect(() => {
     if (isOpen) {
@@ -108,6 +108,14 @@ export function AnimalSelector({ isOpen, onClose }: AnimalSelectorProps) {
             
             {/* Content */}
             <div className="p-6 overflow-y-auto max-h-[50vh]">
+              {/* Loading indicator */}
+              {isLoading && (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                  <Loader2 className="w-8 h-8 animate-spin mb-3" />
+                  <p className="text-sm">正在加载 Agent...</p>
+                </div>
+              )}
+              
               {/* Favorites */}
               {favoriteAnimals.length > 0 && (
                 <div className="mb-6">

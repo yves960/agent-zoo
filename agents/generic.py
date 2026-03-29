@@ -1,7 +1,7 @@
 """
 Generic Agent Service - Dynamically handles any Agent from config.
 
-Supports opencode, claude, crush tools based on AgentConfig.
+Supports opencode, claude, codex, crush tools based on AgentConfig.
 """
 
 import asyncio
@@ -51,8 +51,8 @@ class GenericAgentService(AnimalService):
         tool_map = {
             AgentTool.OPENCODE: "opencode",
             AgentTool.CLAUDE: "claude",
+            AgentTool.CODEX: "codex",
             AgentTool.CRUSH: "crush",
-            AgentTool.OPENAI: "openai",
         }
         command = tool_map.get(self._tool, "opencode")
         
@@ -78,7 +78,7 @@ class GenericAgentService(AnimalService):
             return self._transform_plain_event(event)
 
     def _transform_plain_event(self, event: Union[str, Dict[str, Any]]) -> Optional[AnimalMessage]:
-        """Transform plain text output (opencode, crush)."""
+        """Transform plain text output (opencode, codex, crush)."""
         if isinstance(event, dict):
             text = event.get("text", event.get("content", ""))
         else:
@@ -196,6 +196,8 @@ class GenericAgentService(AnimalService):
         def on_line(line: str, parsed: Optional[Dict[str, Any]] = None, is_error: bool = False) -> None:
             if is_error:
                 clean_line = ANSI_ESCAPE.sub('', line)
+                if clean_line.startswith("> ") or not clean_line.strip():
+                    return
                 queue.put_nowait(self.create_message(
                     content=f"Error: {clean_line}" if clean_line else "An error occurred",
                     message_type="error",
@@ -203,7 +205,6 @@ class GenericAgentService(AnimalService):
                     is_complete=False,
                 ))
             else:
-                # For claude use parsed NDJSON; for others use raw line
                 data = parsed if self._tool == AgentTool.CLAUDE and parsed else line
                 transformed = self.transform_event(data)
                 if transformed:

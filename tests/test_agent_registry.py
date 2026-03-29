@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from agents.registry import AgentRegistry
 from agents.base import AnimalService
-from agents.config import AgentConfig
+from core.agent_config import AgentConfig
 
 
 class MockAnimalService(AnimalService):
@@ -60,10 +60,10 @@ class TestAgentRegistryRegister:
         registry = AgentRegistry()
         
         config = AgentConfig(
-            animal_id="test_animal",
+            id="test_animal",
             name="Test Animal",
             species="Test Species",
-            cli_path="test-cli",
+            description="test-cli",
         )
         
         registry.register_config(config)
@@ -122,10 +122,10 @@ class TestAgentRegistryGetConfig:
         registry = AgentRegistry()
         
         config = AgentConfig(
-            animal_id="test_animal",
+            id="test_animal",
             name="Test Animal",
             species="Test Species",
-            cli_path="test-cli",
+            description="test-cli",
         )
         
         registry.register_config(config)
@@ -193,10 +193,10 @@ class TestAgentRegistryCacheManagement:
         registry.register_class("test_animal", MockAnimalService)
         
         config = AgentConfig(
-            animal_id="test_animal",
+            id="test_animal",
             name="Test Animal",
             species="Test Species",
-            cli_path="test-cli",
+            description="test-cli",
         )
         registry.register_config(config)
         
@@ -220,10 +220,10 @@ class TestAgentRegistryUnregister:
         registry.register_class("test_animal", MockAnimalService)
         
         config = AgentConfig(
-            animal_id="test_animal",
+            id="test_animal",
             name="Test Animal",
             species="Test Species",
-            cli_path="test-cli",
+            description="test-cli",
         )
         registry.register_config(config)
         

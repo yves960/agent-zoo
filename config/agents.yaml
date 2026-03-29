@@ -84,7 +84,7 @@ agents:
       tool: claude
       model: "claude-sonnet-4-20250514"
       timeout: 300
-      args: ["-p", "--output-format", "stream-json"]
+      args: ["--verbose", "--output-format", "stream-json"]
 
   - id: xiaohuang
     name: 小黄
@@ -109,6 +109,6 @@ agents:
         - "啦啦啦~ 让我帮你加固系统！"
     capabilities:
       tool: crush
-      model: "minimax/MiniMax-M2.7"
+      model: "openai/gpt-4o-mini"
       timeout: 300
-      args: ["run"]
+      args: ["run", "-m", "{{model}}"]

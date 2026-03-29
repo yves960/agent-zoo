@@ -23,6 +23,7 @@ const mockAnimals: AnimalAgent[] = [
     traits: ['聪明', '友善'],
     specialties: ['代码审查'],
     greetings: ['汪汪！'],
+    source: 'local',
   },
   {
     id: 'liuliu',
@@ -37,6 +38,7 @@ const mockAnimals: AnimalAgent[] = [
     traits: ['活泼', '好奇'],
     specialties: ['代码审查'],
     greetings: ['啾啾！'],
+    source: 'local',
   },
   {
     id: 'xiaohuang',
@@ -51,6 +53,7 @@ const mockAnimals: AnimalAgent[] = [
     traits: ['开朗', '乐观'],
     specialties: ['视觉设计'],
     greetings: ['唧唧！'],
+    source: 'local',
   },
 ];
 

@@ -2,11 +2,17 @@
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from uuid import uuid4
 
-import redis.asyncio as redis
-from redis.exceptions import RedisError
+try:
+    import redis.asyncio as redis
+    from redis.exceptions import RedisError
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    redis = None
+    RedisError = Exception
 
 from core.config import get_config
 
@@ -16,7 +22,7 @@ class RedisClient:
 
     def __init__(self):
         self.config = get_config()
-        self._client: Optional[redis.Redis] = None
+        self._client: Any = None
         self._connected = False
         self._lock = asyncio.Lock()
         self._fallback_data: Dict[str, Any] = {}

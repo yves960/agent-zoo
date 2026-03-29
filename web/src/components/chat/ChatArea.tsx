@@ -6,24 +6,28 @@ import { MessageSquare, Sparkles, Lock, Unlock, ChevronDown } from "lucide-react
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { AnimalSelector } from "@/components/animals/AnimalSelector";
 import { Button } from "@/components/ui/Button";
 import { useConversationStore } from "@/stores/conversationStore";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useWebSocketContext } from "@/contexts/WebSocketContext";
+import { useUIStore } from "@/stores/uiStore";
 import type { Message, AnimalType } from "@/types";
 
 export function ChatArea() {
-  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [privateTarget, setPrivateTarget] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false); // NEW: Track sending state
+  
   const { getActiveConversation, addMessage, isTyping } = useConversationStore();
-  const { sendMessage, isConnected } = useWebSocket();
+  const { sendMessage, isConnected } = useWebSocketContext();
+  const { openAnimalSelector } = useUIStore();
 
   const conversation = getActiveConversation();
 
   const handleSendMessage = useCallback(
-    (content: string) => {
+    async (content: string) => {
       if (!conversation) return;
+
+      setIsSending(true); // Start loading state
 
       const userMessage: Message = {
         id: Date.now().toString(),
@@ -44,10 +48,24 @@ export function ChatArea() {
       let animalIds: string[];
       if (isPrivate && privateTarget) {
         animalIds = [privateTarget];
+      } else if (content.includes("@")) {
+        const mentionedIds = conversation.participants
+          .filter(p => content.includes(`@${p.name}`) || content.includes(`@${p.id}`))
+          .map(p => p.id);
+        animalIds = mentionedIds.length > 0 ? mentionedIds : conversation.participants.map((p) => p.id);
       } else {
         animalIds = conversation.participants.map((p) => p.id);
       }
-      sendMessage(content, animalIds as AnimalType[], conversation.id, isPrivate);
+      
+      try {
+        sendMessage(content, animalIds as AnimalType[], conversation.id, isPrivate);
+      } finally {
+        // Stop loading state after a short delay to show feedback
+        // The actual response will come via WebSocket
+        setTimeout(() => {
+          setIsSending(false);
+        }, 500);
+      }
     },
     [conversation, addMessage, sendMessage, isPrivate, privateTarget]
   );
@@ -86,15 +104,13 @@ export function ChatArea() {
           <Button
             variant="primary"
             size="lg"
-            onClick={() => setIsSelectorOpen(true)}
+            onClick={openAnimalSelector}
             className="shadow-cartoon-lg"
           >
             <MessageSquare className="w-5 h-5 mr-2" />
             开始新对话
           </Button>
         </motion.div>
-
-        <AnimalSelector isOpen={isSelectorOpen} onClose={() => setIsSelectorOpen(false)} />
       </div>
     );
   }
@@ -151,6 +167,7 @@ export function ChatArea() {
             <ChatInput
               onSend={handleSendMessage}
               disabled={!isConnected}
+              isLoading={isSending} // NEW: Pass loading state
               placeholder={
                 isPrivate
                   ? `私聊发送给 ${privateTarget ? conversation?.participants.find(p => p.id === privateTarget)?.name : "请选择"}...`
@@ -162,8 +179,6 @@ export function ChatArea() {
           </div>
         </div>
       </div>
-
-      <AnimalSelector isOpen={isSelectorOpen} onClose={() => setIsSelectorOpen(false)} />
     </div>
   );
 }

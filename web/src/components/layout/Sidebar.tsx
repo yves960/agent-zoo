@@ -25,6 +25,10 @@ interface SidebarProps {
 export function Sidebar({ onNewChat }: SidebarProps) {
   const { currentView, setCurrentView, sidebarOpen } = useUIStore();
 
+  const handleSettingsClick = () => {
+    setCurrentView("settings");
+  };
+
   return (
     <motion.aside
       initial={false}
@@ -88,7 +92,10 @@ export function Sidebar({ onNewChat }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-100">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-cartoon text-gray-600 hover:bg-gray-50 transition-colors">
+        <button
+          onClick={handleSettingsClick}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-cartoon text-gray-600 hover:bg-gray-50 transition-colors"
+        >
           <Settings className="w-5 h-5" />
           <span>设置</span>
         </button>

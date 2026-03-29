@@ -35,17 +35,15 @@ class TestAgentDispatcherResolveTargets:
         assert set(targets) == {"xueqiu", "liuliu"}
     
     def test_resolve_targets_random_without_mentions(self, mock_websocket_manager: MagicMock) -> None:
-        """When no @mentions are present, randomly select one agent."""
+        """When no @mentions are present, return all enabled agents."""
         dispatcher = AgentDispatcher(ws_manager=mock_websocket_manager)
         
-        # Content without mentions
         content = "Hello everyone!"
-        
         targets = dispatcher._resolve_targets(content, mentions=None)
         
-        # Should return exactly one animal from available list
-        assert len(targets) == 1
-        assert targets[0] in dispatcher._available_animals
+        # Should return all enabled agents when no mentions
+        assert len(targets) > 1
+        assert all(isinstance(t, str) for t in targets)
     
     def test_resolve_targets_uses_provided_mentions(self, mock_websocket_manager: MagicMock) -> None:
         """When no @mentions in content but mentions provided, use provided mentions."""

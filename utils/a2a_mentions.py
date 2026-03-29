@@ -21,6 +21,10 @@ ANIMAL_CONFIGS = {
         "name": "小黄",
         "patterns": ["@小黄", "@xiaohuang", "@黄鹦鹉"],
     },
+    "meiqiu": {
+        "name": "煤球",
+        "patterns": ["@煤球", "@meiqiu"],
+    },
 }
 
 # Pre-compute reverse mapping from pattern to animal key

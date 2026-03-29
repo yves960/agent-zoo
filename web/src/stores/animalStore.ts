@@ -93,14 +93,23 @@ const mergeAnimalData = (
     status?: string;
   }> = {}
 ): AnimalAgent[] => {
-  const animals: AnimalAgent[] = [];
+  // Safety check for apiAnimals
+  if (!apiAnimals || typeof apiAnimals !== 'object') {
+    apiAnimals = {};
+  }
 
-  // Process API animals (local/configured)
+  // Use a Map to deduplicate by animal id
+  const animalsMap = new Map<AnimalType, AnimalAgent>();
+
+  // Process API animals (local/configured) - highest priority (keep these as-is)
   for (const animal of Object.values(apiAnimals)) {
+    // Skip if animal is undefined or missing required fields
+    if (!animal || !animal.id || !animal.name) continue;
+    
     const details = ANIMAL_DETAILS[animal.id as AnimalType];
     const id = animal.id as AnimalType;
 
-    animals.push({
+    animalsMap.set(id, {
       id,
       name: animal.name,
       species: animal.species,
@@ -120,11 +129,21 @@ const mergeAnimalData = (
   }
 
   // Process external agents (h-agent, directory, opencode-session)
+  // Only add if not already present (local agents take precedence)
+  if (!externalAgents || typeof externalAgents !== 'object') {
+    externalAgents = {};
+  }
   for (const agent of Object.values(externalAgents)) {
+    // Skip if agent is undefined or missing required fields
+    if (!agent || !agent.id || !agent.name) continue;
+    
     const source = agent.source as AgentSource;
     const id = agent.id as AnimalType;
 
-    animals.push({
+    // Skip if already added from apiAnimals (local agents take precedence)
+    if (animalsMap.has(id)) continue;
+
+    animalsMap.set(id, {
       id,
       name: agent.name,
       species: source === "h-agent" ? "AI Agent" : source === "opencode-session" ? "OpenCode Session" : "Directory Agent",
@@ -143,11 +162,20 @@ const mergeAnimalData = (
     });
   }
 
-  // Process network agents
+  // Process network agents - only add if not already present
+  if (!networkAgents || typeof networkAgents !== 'object') {
+    networkAgents = {};
+  }
   for (const agent of Object.values(networkAgents)) {
+    // Skip if agent is undefined or missing required fields
+    if (!agent || !agent.id || !agent.name) continue;
+    
     const id = agent.id as AnimalType;
 
-    animals.push({
+    // Skip if already added from apiAnimals or externalAgents
+    if (animalsMap.has(id)) continue;
+
+    animalsMap.set(id, {
       id,
       name: agent.name,
       species: "Network Agent",
@@ -166,7 +194,7 @@ const mergeAnimalData = (
     });
   }
 
-  return animals;
+  return Array.from(animalsMap.values());
 };
 
 export const useAnimalStore = create<AnimalState & AnimalActions>()(

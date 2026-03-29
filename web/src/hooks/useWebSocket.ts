@@ -20,20 +20,23 @@ export function useWebSocket(): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const shouldReconnectRef = useRef(true);
+  const isManualDisconnectRef = useRef(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
+  // Select store state individually to minimize re-renders
   const addMessage = useConversationStore((state) => state.addMessage);
   const setTyping = useConversationStore((state) => state.setTyping);
-  const conversations = useConversationStore((state) => state.conversations);
   const activeConversationId = useConversationStore((state) => state.activeConversationId);
+  const getConversationById = useConversationStore((state) => state.getConversationById);
   const addToast = useUIStore((state) => state.addToast);
 
-  // Compute active conversation with stable reference
-  const activeConversation = conversations.find((c) => c.id === activeConversationId);
+  const activeConversationIdRef = useRef(activeConversationId);
+  activeConversationIdRef.current = activeConversationId;
 
   const disconnect = useCallback(() => {
+    isManualDisconnectRef.current = true;
     shouldReconnectRef.current = false;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -48,7 +51,12 @@ export function useWebSocket(): UseWebSocketReturn {
   }, []);
 
   const handleWebSocketMessage = useCallback((data: WebSocketMessage) => {
-    if (!activeConversation) return;
+    const currentConversationId = activeConversationIdRef.current;
+    if (!currentConversationId) return;
+
+    // Always get the conversation fresh from the store to avoid stale closures
+    const currentConversation = getConversationById(currentConversationId);
+    if (!currentConversation) return;
 
     switch (data.type) {
       case "message":
@@ -64,21 +72,21 @@ export function useWebSocket(): UseWebSocketReturn {
               animalId: data.animal_id as AnimalType,
             },
             timestamp: new Date(data.timestamp || Date.now()),
-            threadId: data.thread_id || activeConversation.id,
-            mentions: data.mentions as AnimalType[] || [],
+            threadId: data.thread_id || currentConversation.id,
+            mentions: (data.mentions as AnimalType[]) || [],
             private: data.private || false,
           };
-          addMessage(activeConversation.id, message);
+          addMessage(currentConversation.id, message);
         }
         break;
 
       case "typing":
-        setTyping(activeConversation.id, true);
-        setTimeout(() => setTyping(activeConversation.id, false), 3000);
+        setTyping(currentConversation.id, true);
+        setTimeout(() => setTyping(currentConversation.id, false), 3000);
         break;
 
       case "done":
-        setTyping(activeConversation.id, false);
+        setTyping(currentConversation.id, false);
         break;
 
       case "error":
@@ -92,11 +100,18 @@ export function useWebSocket(): UseWebSocketReturn {
         console.log("System message:", data.content);
         break;
     }
-  }, [activeConversation, addMessage, setTyping, addToast]);
+  }, [addMessage, setTyping, addToast, getConversationById]);
+
+  const handleWebSocketMessageRef = useRef(handleWebSocketMessage);
+  handleWebSocketMessageRef.current = handleWebSocketMessage;
+
+  const handleMessage = useCallback((data: WebSocketMessage) => {
+    handleWebSocketMessageRef.current(data);
+  }, []);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
-    
+
     setIsConnecting(true);
     setError(null);
 
@@ -108,25 +123,19 @@ export function useWebSocket(): UseWebSocketReturn {
         setIsConnected(true);
         setIsConnecting(false);
         setError(null);
-        
-        // Send initial connection message
-        ws.send(JSON.stringify({
-          type: "connect",
-          animal_id: "user",
-        }));
       };
 
       ws.onmessage = (event) => {
         try {
           const data: WebSocketMessage = JSON.parse(event.data);
-          handleWebSocketMessage(data);
+          handleMessage(data);
         } catch (err) {
           console.error("Failed to parse WebSocket message:", err);
         }
       };
 
-      ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
+      ws.onerror = () => {
+        console.error("WebSocket error");
         setError("连接出错，正在重试...");
         setIsConnected(false);
       };
@@ -134,11 +143,11 @@ export function useWebSocket(): UseWebSocketReturn {
       ws.onclose = () => {
         setIsConnected(false);
         setIsConnecting(false);
-        
+
         // Only attempt reconnection if not explicitly disconnected
-        if (shouldReconnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+        if (shouldReconnectRef.current && !isManualDisconnectRef.current) {
           reconnectTimeoutRef.current = setTimeout(() => {
-            if (shouldReconnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+            if (shouldReconnectRef.current && !isManualDisconnectRef.current) {
               connect();
             }
           }, 3000);
@@ -148,7 +157,7 @@ export function useWebSocket(): UseWebSocketReturn {
       setError("无法建立连接");
       setIsConnecting(false);
     }
-  }, [handleWebSocketMessage]);
+  }, [handleMessage]);
 
   const sendMessage = useCallback((content: string, animalIds: AnimalType[], threadId?: string, privateMessage?: boolean) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -171,10 +180,48 @@ export function useWebSocket(): UseWebSocketReturn {
     wsRef.current.send(JSON.stringify(message));
   }, [addToast]);
 
+  // Initial connection
   useEffect(() => {
     connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    return () => {
+      shouldReconnectRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setIsConnected(false);
+      setIsConnecting(false);
+    };
+  }, [connect]);
+
+  // Notify server of active conversation changes
+  useEffect(() => {
+    if (!activeConversationId) return;
+
+    const sendConnect = () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: "connect",
+          animal_id: "user",
+          thread_id: activeConversationId,
+        }));
+      }
+    };
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendConnect();
+    }
+
+    const ws = wsRef.current;
+    if (ws) {
+      ws.addEventListener("open", sendConnect);
+      return () => ws.removeEventListener("open", sendConnect);
+    }
+  }, [activeConversationId]);
 
   return {
     isConnected,

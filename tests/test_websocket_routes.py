@@ -117,6 +117,7 @@ class TestWebSocketConnection:
             mock_manager = MagicMock()
             mock_manager.connect = AsyncMock(return_value="test-conn-id")
             mock_manager.disconnect = AsyncMock()
+            mock_manager.set_session_for_connection = AsyncMock(return_value=True)
             mock_get_manager.return_value = mock_manager
             
             # Mock dispatcher

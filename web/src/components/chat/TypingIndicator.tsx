@@ -11,6 +11,9 @@ interface TypingIndicatorProps {
 export function TypingIndicator({ animals }: TypingIndicatorProps) {
   const animal = animals[0];
 
+  // Don't render if no animals
+  if (!animal) return null;
+
   return (
     <div className="flex items-center gap-3">
       {/* Avatar */}

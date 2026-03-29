@@ -7,6 +7,7 @@ interface UIState {
   toasts: Toast[];
   searchQuery: string;
   selectedAnimalFilter: string | null;
+  animalSelectorOpen: boolean;
 }
 
 interface UIActions {
@@ -23,6 +24,10 @@ interface UIActions {
   setSearchQuery: (query: string) => void;
   setAnimalFilter: (animalId: string | null) => void;
   clearFilters: () => void;
+
+  // Animal selector
+  openAnimalSelector: () => void;
+  closeAnimalSelector: () => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -33,6 +38,7 @@ export const useUIStore = create<UIState & UIActions>((set, get) => ({
   toasts: [],
   searchQuery: "",
   selectedAnimalFilter: null,
+  animalSelectorOpen: false,
 
   setCurrentView: (view) => set({ currentView: view }),
   
@@ -65,4 +71,7 @@ export const useUIStore = create<UIState & UIActions>((set, get) => ({
   setAnimalFilter: (animalId) => set({ selectedAnimalFilter: animalId }),
 
   clearFilters: () => set({ searchQuery: "", selectedAnimalFilter: null }),
+
+  openAnimalSelector: () => set({ animalSelectorOpen: true }),
+  closeAnimalSelector: () => set({ animalSelectorOpen: false }),
 }));

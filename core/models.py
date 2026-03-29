@@ -13,7 +13,6 @@ class AnimalType(str, Enum):
     XUEQIU = "xueqiu"
     LIULIU = "liuliu"
     XIAOHUANG = "xiaohuang"
-    OPENAI = "openai"  # 新增
 
 
 class MessageRole(str, Enum):
@@ -87,5 +86,4 @@ ANIMAL_CONFIGS = {
     "xueqiu": {"name": "雪球", "species": "雪纳瑞", "cli": "opencode", "color": "#4A90E2"},
     "liuliu": {"name": "六六", "species": "虎皮鹦鹉(蓝)", "cli": "claude", "color": "#50C8E6"},
     "xiaohuang": {"name": "小黄", "species": "虎皮鹦鹉(黄绿)", "cli": "crush", "color": "#7ED321"},
-    "openai": {"name": "OpenAI Agent", "species": "AI Assistant", "cli": "openai-agent", "color": "#9B59B6"},  # 新增
 }

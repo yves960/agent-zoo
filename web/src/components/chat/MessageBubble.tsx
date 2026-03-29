@@ -9,6 +9,18 @@ interface MessageBubbleProps {
   message: Message;
 }
 
+function highlightMentions(content: string): React.ReactNode {
+  const mentionRegex = /(@\w+)/g;
+  const parts = content.split(mentionRegex);
+  
+  return parts.map((part, index) => {
+    if (part.match(mentionRegex)) {
+      return <span key={index} className="mention">{part}</span>;
+    }
+    return part;
+  });
+}
+
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = !message.sender.isAnimal;
   const animal = message.sender.isAnimal ? {
@@ -64,7 +76,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         >
           {/* Message text */}
           <p className="text-sm leading-relaxed whitespace-pre-wrap">
-            {message.content}
+            {highlightMentions(message.content)}
           </p>
 
           {/* Timestamp */}

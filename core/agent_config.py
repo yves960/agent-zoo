@@ -10,8 +10,8 @@ class AgentTool(str, Enum):
     """Available agent tools."""
     OPENCODE = "opencode"
     CLAUDE = "claude"
+    CODEX = "codex"
     CRUSH = "crush"
-    OPENAI = "openai"
 
 
 class PersonalityConfig(BaseModel):

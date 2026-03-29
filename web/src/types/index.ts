@@ -3,7 +3,7 @@
  */
 
 // Animal types from backend
-export type AnimalType = "xueqiu" | "liuliu" | "xiaohuang" | "meiqiu" | "openai";
+export type AnimalType = "xueqiu" | "liuliu" | "xiaohuang" | "meiqiu";
 
 export interface AnimalConfig {
   id: AnimalType;
@@ -134,7 +134,7 @@ export interface AnimalsResponse {
 }
 
 // UI types
-export type ViewType = "chat" | "history" | "animals";
+export type ViewType = "chat" | "history" | "animals" | "settings";
 
 export interface Toast {
   id: string;

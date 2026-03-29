@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Send, Smile } from "lucide-react";
+import { Send, Smile, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EmojiPicker } from "./EmojiPicker";
 import { MentionDropdown } from "./MentionDropdown";
@@ -14,9 +14,10 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  isLoading?: boolean; // NEW: Loading state for sending
 }
 
-export function ChatInput({ onSend, disabled, placeholder = "输入消息..." }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, placeholder = "输入消息...", isLoading = false }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -30,7 +31,7 @@ export function ChatInput({ onSend, disabled, placeholder = "输入消息..." }:
   const availableAnimals = activeConversation?.participants ?? allAnimals;
 
   const handleSend = () => {
-    if (!message.trim() || disabled) return;
+    if (!message.trim() || disabled || isLoading) return;
     onSend(message.trim());
     setMessage("");
     setMentionSearch(null);
@@ -100,6 +101,8 @@ export function ChatInput({ onSend, disabled, placeholder = "输入消息..." }:
     }, 0);
   };
 
+  const isSendDisabled = !message.trim() || disabled || isLoading;
+
   return (
     <motion.div
       initial={{ y: 20, opacity: 0 }}
@@ -116,6 +119,7 @@ export function ChatInput({ onSend, disabled, placeholder = "输入消息..." }:
         whileTap={{ scale: 0.9 }}
         onClick={() => setShowEmojiPicker(true)}
         className="p-2.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+        disabled={isLoading}
       >
         <Smile className="w-6 h-6" />
       </motion.button>
@@ -137,7 +141,7 @@ export function ChatInput({ onSend, disabled, placeholder = "输入消息..." }:
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
-          disabled={disabled}
+          disabled={disabled || isLoading}
           rows={1}
           className={`
             w-full px-4 py-3 rounded-cartoon-lg 
@@ -153,19 +157,23 @@ export function ChatInput({ onSend, disabled, placeholder = "输入消息..." }:
         />
       </motion.div>
 
-      {/* Send button */}
+      {/* Send button with loading state */}
       <motion.div
-        whileHover={{ scale: message.trim() ? 1.05 : 1 }}
-        whileTap={{ scale: message.trim() ? 0.95 : 1 }}
+        whileHover={{ scale: !isSendDisabled ? 1.05 : 1 }}
+        whileTap={{ scale: !isSendDisabled ? 0.95 : 1 }}
       >
         <Button
           variant="primary"
           size="icon"
           onClick={handleSend}
-          disabled={!message.trim() || disabled}
+          disabled={isSendDisabled}
           className="rounded-full w-12 h-12"
         >
-          <Send className="w-5 h-5" />
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Send className="w-5 h-5" />
+          )}
         </Button>
       </motion.div>
 
